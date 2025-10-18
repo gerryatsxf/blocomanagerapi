@@ -29,11 +29,7 @@ export class PaymentService {
   async paymentSuccess(request, stripeSignature, endpointSecret, response) {
     // Make sure this event was sent from Stripe
     let event;
-    console.log(' ')
-    console.log('-----------------------------')
-    console.log({request: request.rawBody})
-    console.log({stripeSignature})
-    console.log({endpointSecret})
+
     try {
       event = stripe.webhooks.constructEvent(
         request.rawBody,
@@ -44,12 +40,11 @@ export class PaymentService {
       response.sendStatus(400).send(`Webhook Error: ${err.message}`);
       return;
     }
-    console.log(event);
+
     const stripeSessionCompleted = plainToInstance(
       StripeSessionCompletedDto,
       event.data.object,
     );
-    console.log(stripeSessionCompleted);
 
     // Fetch session info
     const clientReferenceId = stripeSessionCompleted.client_reference_id;
@@ -73,7 +68,7 @@ export class PaymentService {
         const customerName = stripeSessionCompleted.customer_details.name;
 
         // Create vonage meeting
-        const videoMeeting = await this.meetingService.createMeeting();
+        // const videoMeeting = await this.meetingService.createMeeting();
         // console.log({ videoMeeting });
         //
         // Create calendar event
@@ -85,8 +80,8 @@ export class PaymentService {
           '! Es un gusto saludarte, gracias por agendar con BlocoManager. En breve recibirás un correo con los detalles de tu reunión, gracias por tu preferencia. ¡Nos vemos pronto!';
         // eventParams.guestMeetingLink = videoMeeting._links.guest_url.href;
         // eventParams.hostMeetingLink = videoMeeting._links.host_url.href;
-        eventParams.hostMeetingLink = videoMeeting.data.join_url
-        eventParams.guestMeetingLink = videoMeeting.data.join_url
+        eventParams.hostMeetingLink = ''
+        eventParams.guestMeetingLink = ''
         eventParams.description = this.getEventDescription(
           customerName,
           customerEmail,

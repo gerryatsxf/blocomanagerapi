@@ -22,7 +22,7 @@ export class MeetingService {
     // const headersRequest = {
     //   Authorization: `Bearer ${process.env.VONAGE_JWT_365_DAYS}`,
     // };
-    console.log('about to creating meeting');
+
     return firstValueFrom(
       this.httpService
         .post(
