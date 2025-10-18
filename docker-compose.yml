@@ -77,9 +77,6 @@ services:
           cpus: '1.0'
         reservations:
           memory: 256M
-    # Node.js memory optimization
-    environment:
-      - NODE_OPTIONS=--max-old-space-size=256
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3002"]
       interval: 30s
