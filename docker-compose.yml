@@ -56,9 +56,6 @@ services:
       - VONAGE_JWT_365_DAYS=${VONAGE_JWT_365_DAYS}
       - DOCKER_ENV=${DOCKER_ENV:-false}
       - NODE_OPTIONS=--max-old-space-size=256
-    # For local development only (ignored if file doesn't exist)
-    env_file: 
-      - env/dev.env
     volumes:
       - .:/app
       - /app/node_modules
