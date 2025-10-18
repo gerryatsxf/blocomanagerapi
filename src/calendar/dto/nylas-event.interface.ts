@@ -1,7 +1,3 @@
-import EventConferencing from 'nylas/lib/models/event-conferencing';
-import EventParticipant from 'nylas/lib/models/event-participant';
-import EventNotification from 'nylas/lib/models/event-notification';
-
 export interface INylasEvent {
   end: number;
   start: number;
@@ -10,11 +6,16 @@ export interface INylasEvent {
   description: string;
   calendarId: string;
   busy: boolean;
-  participants: EventParticipant[];
+  participants: Array<{ name?: string; email: string }>;
   when: NylasEventWhen;
   metadata: NylasEventMetadata;
-  notifications: EventNotification[];
-  conferencing: EventConferencing;
+  notifications: Array<{
+    type: string;
+    minutesBeforeEvent: number;
+    subject?: string;
+    body?: string;
+  }>;
+  conferencing: any;
   save(options?: NylasEventSaveOptions): Promise<INylasEvent>;
 }
 

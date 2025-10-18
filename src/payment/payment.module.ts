@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { PaymentService } from './payment.service';
 import { PaymentController } from './payment.controller';
 import { NotificationModule } from 'src/notification/notification.module';
-import { NotificationService } from '../notification/notification.service';
 import { BookingModule } from '../booking/booking.module';
 import { BookingService } from '../booking/booking.service';
 import { FreeSlotModule } from '../free-slot/free-slot.module';
@@ -17,7 +16,6 @@ import { BookingSchema } from '../booking/entities/booking.schema';
 import { AvailabilityModule } from '../availability/availability.module';
 import { AvailabilityService } from '../availability/availability.service';
 import { CalendarModule } from '../calendar/calendar.module';
-import { CalendarService } from '../calendar/calendar.service';
 import { MeetingModule } from '../meeting/meeting.module';
 import { MeetingService } from '../meeting/meeting.service';
 @Module({
@@ -36,13 +34,11 @@ import { MeetingService } from '../meeting/meeting.service';
   controllers: [PaymentController],
   providers: [
     PaymentService,
-    NotificationService,
     BookingService,
     FreeSlotService,
     SessionService,
     EncryptionService,
     AvailabilityService,
-    CalendarService,
     MeetingService,
   ],
 })

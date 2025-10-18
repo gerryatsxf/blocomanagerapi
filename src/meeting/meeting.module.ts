@@ -8,7 +8,6 @@ import { BookingSchema } from '../booking/entities/booking.schema';
 import { AvailabilityService } from '../availability/availability.service';
 import { AvailabilityModule } from '../availability/availability.module';
 import { CalendarModule } from '../calendar/calendar.module';
-import { CalendarService } from '../calendar/calendar.service';
 import { MeetingController } from './meeting.controller';
 import { SessionModule } from '../session/session.module';
 import { SessionService } from '../session/session.service';
@@ -33,7 +32,6 @@ import { EncryptionService } from '../encryption/encryption.service';
     MeetingService,
     FreeSlotService,
     AvailabilityService,
-    CalendarService,
     SessionService,
     EncryptionService,
   ],

@@ -1,64 +1,56 @@
-version: '3.9'
-
 services:
-  # MongoDB Database (Production)
-  mongodb:
+  # Development MongoDB (for local development)
+  mongodb-dev:
     image: mongo:7.0
-    container_name: aprendecoding_mongodb
+    container_name: blocomanager_mongodb_dev
     restart: unless-stopped
     ports:
-      - "27017:27017"
+      - "27020:27017"
     environment:
       MONGO_INITDB_ROOT_USERNAME: admin_root
       MONGO_INITDB_ROOT_PASSWORD: admin_root
-      MONGO_INITDB_DATABASE: aprendecoding
-    networks:
-      - aprendecoding_network
-
-  # API Application (Production)
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: aprendecoding_api
-    restart: unless-stopped
-    ports:
-      - "3002:3002"
-    environment:
-      - DOCKER_ENV=true
-      - NODE_ENV=production
-      - PORT=3002
-      - MONGO_DB_ATLAS_CONNECTION_STRING=mongodb://admin_root:admin_root@mongodb:27017/aprendecoding?authSource=admin
-      - JWT_SECRET=${JWT_SECRET}
-      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-      - STRIPE_PAYMENT_SUCCESS_WEBHOOK_SECRET_KEY=${STRIPE_PAYMENT_SUCCESS_WEBHOOK_SECRET_KEY}
-      - NYLAS_MAIN_ACCOUNT_EMAIL=${NYLAS_MAIN_ACCOUNT_EMAIL}
-      - NYLAS_CLIENT_ID=${NYLAS_CLIENT_ID}
-      - NYLAS_CLIENT_SECRET=${NYLAS_CLIENT_SECRET}
-      - NYLAS_MAIN_ACCOUNT_ACCESS_TOKEN=${NYLAS_MAIN_ACCOUNT_ACCESS_TOKEN}
-      - CREATE_MEETING_URL=${CREATE_MEETING_URL}
-      - VONAGE_JWT_365_DAYS=${VONAGE_JWT_365_DAYS}
-    depends_on:
-      - mongodb
-    networks:
-      - aprendecoding_network
-
-  # Development server (for local development)
-  devserver:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: aprendecodingapi
-    ports:
-      - "3002:3002"
-    env_file: env/dev.env
+      MONGO_INITDB_DATABASE: blocomanager
     volumes:
-      - .:/app
-      - /app/node_modules
+      - mongodb_dev_data:/data/db
+    networks:
+      - blocomanager_network
     profiles:
       - dev
 
+  # Development server (for local development)
+  nestjs-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: blocomanager_dev
+    ports:
+      - "3002:3002"
+    env_file: 
+      - env/dev.env
+      - env/deploy.env  # This file is created during CI/CD, ignored if doesn't exist
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - mongodb-dev
+    networks:
+      - blocomanager_network
+    profiles:
+      - dev
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3002"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
 networks:
-  aprendecoding_network:
+  blocomanager_network:
     driver: bridge
+
+volumes:
+  mongodb_data:
+    driver: local
+  mongodb_dev_data:
+    driver: local

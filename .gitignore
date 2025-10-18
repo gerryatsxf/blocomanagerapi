@@ -34,5 +34,12 @@ lerna-debug.log*
 !.vscode/launch.json
 !.vscode/extensions.json
 
-
+# Environment files
 *.env
+env/deploy.env
+
+# Docker
+.dockerignore
+
+# Ngrok (if used in future)
+.ngrok-tunnel.json

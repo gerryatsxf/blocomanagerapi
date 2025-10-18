@@ -1,0 +1,175 @@
+name: Development Environment CI/CD
+
+on:
+  push:
+    branches: [ "develop" ]
+  pull_request:
+    branches: [ "develop" ]
+
+jobs:
+  dev-deploy:
+    runs-on: self-hosted
+    environment: dev
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up environment variables
+      run: |
+        echo "Setting up environment for development deployment..."
+        echo "COMPOSE_PROJECT_NAME=blocomanager" >> $GITHUB_ENV
+        echo "DOCKER_BUILDKIT=1" >> $GITHUB_ENV
+
+    - name: Clean up existing containers and resources
+      run: |
+        echo "🧹 Cleaning up existing containers and resources..."
+        
+        # Stop and remove containers using docker-compose
+        docker-compose --profile dev down --volumes --remove-orphans || true
+        
+        # Clean up any orphaned containers with our project name
+        docker ps -a --filter "name=blocomanager" -q | xargs -r docker rm -f || true
+        
+        # Clean up any containers using our ports
+        docker ps --filter "publish=3002" -q | xargs -r docker stop || true
+        docker ps -a --filter "publish=3002" -q | xargs -r docker rm || true
+        docker ps --filter "publish=27020" -q | xargs -r docker stop || true
+        docker ps -a --filter "publish=27020" -q | xargs -r docker rm || true
+        
+        # Clean up unused images and build cache
+        docker image prune -f || true
+        docker builder prune -f || true
+        
+        echo "✅ Cleanup completed"
+
+    - name: Create environment file for deployment
+      run: |
+        echo "📝 Creating environment file for deployment..."
+        cat > env/deploy.env << EOF
+        # MongoDB Configuration
+        MONGO_DB_ATLAS_CONNECTION_STRING=mongodb://admin_root:admin_root@mongodb-dev:27017/blocomanager?authSource=admin
+        
+        # JWT Configuration
+        JWT_SECRET=${{ secrets.JWT_SECRET }}
+        JWT_EXPIRES_IN=${{ vars.JWT_EXPIRES_IN }}
+        
+        # Stripe Configuration
+        STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
+        STRIPE_PAYMENT_SUCCESS_WEBHOOK_SECRET_KEY=${{ secrets.STRIPE_PAYMENT_SUCCESS_WEBHOOK_SECRET_KEY }}
+        
+        # Nylas Configuration
+        NYLAS_MAIN_ACCOUNT_EMAIL=${{ vars.NYLAS_MAIN_ACCOUNT_EMAIL }}
+        NYLAS_CLIENT_ID=${{ secrets.NYLAS_CLIENT_ID }}
+        NYLAS_CLIENT_SECRET=${{ secrets.NYLAS_CLIENT_SECRET }}
+        NYLAS_MAIN_ACCOUNT_ACCESS_TOKEN=${{ secrets.NYLAS_MAIN_ACCOUNT_ACCESS_TOKEN }}
+        NYLAS_MAIN_ACCOUNT_API_KEY=${{ secrets.NYLAS_MAIN_ACCOUNT_API_KEY }}
+        NYLAS_MAIN_ACCOUNT_GRANT_ID=${{ secrets.NYLAS_MAIN_ACCOUNT_GRANT_ID }}
+        
+        # Webhook URLs
+        CREATE_MEETING_URL=${{ secrets.CREATE_MEETING_URL }}
+        
+        # Vonage Configuration
+        VONAGE_JWT_365_DAYS=${{ secrets.VONAGE_JWT_365_DAYS }}
+        
+        # Application Configuration
+        NODE_ENV=development
+        PORT=3002
+        DOCKER_ENV=true
+        EOF
+        
+        echo "✅ Environment file created"
+
+    - name: Build and deploy with Docker Compose
+      run: |
+        echo "🚀 Building and deploying services with Docker Compose..."
+        
+        # Use the deploy environment file
+        export COMPOSE_FILE=docker-compose.yml
+        
+        # Build and start services with development profile
+        docker-compose --profile dev build --no-cache
+        docker-compose --profile dev up -d
+        
+        echo "✅ Services started"
+
+    - name: Wait for services to be ready
+      run: |
+        echo "⏳ Waiting for services to be ready..."
+        
+        # Wait for MongoDB to be ready
+        echo "Waiting for MongoDB..."
+        timeout 60 bash -c 'until docker-compose exec -T mongodb-dev mongosh --eval "db.adminCommand('\''ping'\'')" > /dev/null 2>&1; do echo "MongoDB not ready yet..."; sleep 2; done' || {
+          echo "MongoDB failed to start within 60 seconds"
+          docker-compose --profile dev logs mongodb-dev
+          exit 1
+        }
+        echo "✅ MongoDB is ready"
+        
+        # Wait for NestJS API to be ready
+        echo "Waiting for NestJS API..."
+        timeout 90 bash -c 'until curl -f http://localhost:3002 > /dev/null 2>&1; do echo "API not ready yet..."; sleep 3; done' || {
+          echo "API failed to start within 90 seconds"
+          docker-compose --profile dev logs nestjs-dev
+          exit 1
+        }
+        echo "✅ NestJS API is ready"
+
+    - name: Health check and verification
+      run: |
+        echo "🔍 Performing health checks..."
+        
+        # Show running containers
+        echo "=== Running Containers ==="
+        docker-compose --profile dev ps
+        
+        # Test API endpoints
+        echo "=== Testing API Health ==="
+        if curl -f http://localhost:3002 > /dev/null 2>&1; then
+          echo "✅ Root endpoint is responding"
+        else
+          echo "❌ Root endpoint failed"
+          docker-compose --profile dev logs nestjs-dev --tail 50
+          exit 1
+        fi
+        
+        # Check if Swagger is accessible
+        echo "=== Testing Swagger Documentation ==="
+        if curl -f http://localhost:3002/swagger > /dev/null 2>&1; then
+          echo "✅ Swagger documentation is accessible"
+        else
+          echo "⚠️  Swagger endpoint not accessible (this might be expected)"
+        fi
+        
+        # Show service logs for debugging
+        echo "=== Recent MongoDB Logs ==="
+        docker-compose --profile dev logs mongodb-dev --tail 10
+        echo "=== Recent API Logs ==="
+        docker-compose --profile dev logs nestjs-dev --tail 20
+        
+        echo "🎉 Development environment deployment successful!"
+
+    - name: Display deployment information
+      run: |
+        echo "📋 Deployment Information:"
+        echo "🌐 API URL: http://localhost:3002"
+        echo "📚 Swagger UI: http://localhost:3002/swagger"
+        echo "🗄️  MongoDB: localhost:27020"
+        echo ""
+        echo "📊 Resource Usage:"
+        docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}"
+        echo ""
+        echo "🔧 To manage the deployment:"
+        echo "  Stop services: docker-compose --profile dev down"
+        echo "  View logs: docker-compose --profile dev logs -f [service-name]"
+        echo "  Restart: docker-compose --profile dev restart [service-name]"
+
+    - name: Cleanup on failure
+      if: failure()
+      run: |
+        echo "❌ Deployment failed, cleaning up..."
+        docker-compose --profile dev down --volumes || true
+        docker-compose --profile dev logs
+        echo "=== System Information ==="
+        df -h
+        docker system df
