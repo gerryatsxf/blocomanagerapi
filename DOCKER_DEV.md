@@ -6,14 +6,30 @@
 
 ## Quick Start
 
-### 1. Start Development Environment
+### 1. Automated Deployment (Recommended)
+```bash
+# Make script executable (first time only)
+chmod +x deploy-local.sh
+
+# Deploy with automatic env loading and cleanup
+./deploy-local.sh
+```
+
+The deployment script:
+- Loads variables from `env/dev.env` automatically  
+- Performs system cleanup for memory optimization
+- Builds and starts services without watch mode (production-like)
+- Runs health checks and displays service info
+- Mimics GitHub Actions deployment locally
+
+### 2. Manual Development Environment
 ```bash
 docker compose --profile dev up
 ```
 
 This command starts:
 - **MongoDB Dev**: Database on port 27020
-- **API Dev Server**: NestJS app with hot reload on port 3002
+- **API Dev Server**: NestJS app (production mode, no hot reload)
 
 ### 2. Development Features
 - **Hot Reload**: Code changes automatically restart the server

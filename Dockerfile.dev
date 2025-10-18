@@ -17,8 +17,12 @@ RUN npm ci --no-audit --prefer-offline \
 # Copy source code
 COPY . .
 
-# Build the application
-RUN npm run build
+# Build the application and check output
+RUN npm run build && \
+    echo "Build completed. Checking dist directory:" && \
+    ls -la dist/ && \
+    echo "Contents of dist/main*:" && \
+    ls -la dist/main*
 
 # Set environment variables with memory limits
 ENV NODE_ENV=development
@@ -29,4 +33,4 @@ ENV NODE_OPTIONS="--max-old-space-size=256"
 EXPOSE 3002
 
 # Start the application in production mode (no watch mode)
-CMD ["npm", "run", "start:prod"]
+CMD ["node", "dist/main.js"]

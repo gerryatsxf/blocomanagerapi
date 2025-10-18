@@ -59,7 +59,7 @@ jobs:
     - name: Memory-optimized build and deploy
       env:
         # Security: Pass environment variables directly to containers, no .env files
-        MONGO_DB_CONNECTION_STRING: mongodb://admin_root:admin_root@mongodb-dev:27017/blocomanager?authSource=admin
+        MONGO_DB_CONNECTION_STRING: ${{ secrets.MONGO_DB_CONNECTION_STRING }}
         JWT_SECRET: ${{ secrets.JWT_SECRET }}
         JWT_EXPIRES_IN: ${{ vars.JWT_EXPIRES_IN }}
         STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
@@ -90,7 +90,7 @@ jobs:
     - name: Wait for services and health check
       env:
         # Same environment variables for consistency
-        MONGO_DB_CONNECTION_STRING: mongodb://admin_root:admin_root@mongodb-dev:27017/blocomanager?authSource=admin
+        MONGO_DB_CONNECTION_STRING: ${{ secrets.MONGO_DB_CONNECTION_STRING }}
         JWT_SECRET: ${{ secrets.JWT_SECRET }}
         JWT_EXPIRES_IN: ${{ vars.JWT_EXPIRES_IN }}
         STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
