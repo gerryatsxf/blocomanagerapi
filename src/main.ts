@@ -18,8 +18,8 @@ async function bootstrap() {
   });
 
   const config = new DocumentBuilder()
-    .setTitle('AprendeCoding API')
-    .setDescription('Welcome to the AprendeCoding API reference.')
+    .setTitle('BlocoManager API')
+    .setDescription('Welcome to the BlocoManager API reference.')
     .setVersion('1.0')
     .addBearerAuth()
     .build();

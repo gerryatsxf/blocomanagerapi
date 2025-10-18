@@ -112,15 +112,15 @@ export class CalendarService {
         \n<br>
         \n<br> Nos da mucho gusto saludarte. 
         \n<br>
-        \n<br> Te damos una cálido bienvenida de parte de aprendecoding.com :) 
-        \n<br> Has agendado una sesión de asesoría para el XX de XX del XXXX a las XX:XX pm. 
+        \n<br> Te damos una cálido bienvenida de parte de blocomanager.com :) 
+        \n<br> Has agendado una sesión de reunión para el XX de XX del XXXX a las XX:XX pm. 
         \n<br> Más abajo te compartimos el link de la reunión. 
         \n<br> Te esperamos! 
         \n<br>
         \n<br> Link de videollamada: ${meetingLink}
         \n<br>
         \n<br> Atentamente, 
-        \n<br> aprendecoding.com`;
+        \n<br> blocomanager.com`;
   }
 
   async scheduleEvent(scheduleEventParamsDto: ScheduleEventParamsDto) {

@@ -16,7 +16,7 @@ export class MeetingService {
   // }
 
   async createMeeting(
-    displayName = 'AprendeCoding - Espacio de asesorías',
+    displayName = 'BlocoManager - Espacio de reuniones',
   ): Promise<CreateMeetingResultDto> {
     const BASE_URL = process.env.CREATE_MEETING_URL;
     // const headersRequest = {

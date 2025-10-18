@@ -1,5 +1,12 @@
 <p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="200" alt="Nest Logo" /></a>
+  <a href="http://nestjs.com/" ta$ docker run -d --name blocomanager_mongodb \
+  --network blocomanager_network \
+  -p 27020:27017 \
+  -e MONGO_INITDB_ROOT_USERNAME=admin_root \
+  -e MONGO_INITDB_ROOT_PASSWORD=admin_root \
+  -e MONGO_INITDB_DATABASE=blocomanager \
+  -v blocomanager_mongodb_data:/data/db \
+  mongo:latestlank"><img src="https://nestjs.com/img/logo-small.svg" width="200" alt="Nest Logo" /></a>
 </p>
 
 [circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
@@ -24,7 +31,7 @@
 
 ## Description
 
-AprendeCoding API - A NestJS application for managing coding tutorials and sessions.
+BlocoManager API - A NestJS application for managing meetings and appointments.
 
 ## Environment Configuration
 
@@ -111,10 +118,10 @@ Build and run with Docker:
 
 ```bash
 # Build the image
-$ docker build -t aprendecoding:latest .
+$ docker build -t blocomanager:latest .
 
 # Run with environment variables
-$ docker run -d --name aprendecoding_api -p 3002:3002 \
+$ docker run -d --name blocomanager_api -p 3002:3002 \
   -e DOCKER_ENV="true" \
   -e MONGO_DB_ATLAS_CONNECTION_STRING="your_mongo_connection_string" \
   -e JWT_SECRET="your_jwt_secret" \
@@ -123,7 +130,7 @@ $ docker run -d --name aprendecoding_api -p 3002:3002 \
   -e NYLAS_CLIENT_ID="your_nylas_client_id" \
   -e NYLAS_CLIENT_SECRET="your_nylas_client_secret" \
   -e NYLAS_API_KEY="your_nylas_api_key" \
-  aprendecoding:latest
+  blocomanager:latest
 ```
 
 ## Installation

@@ -14,7 +14,7 @@ export class AppService {
     return {
       status: 'healthy',
       timestamp: new Date().toISOString(),
-      service: 'AprendeCoding API',
+      service: 'BlocoManager API',
       version: '1.0.0',
       environment: process.env.NODE_ENV || 'development',
       database: 'MongoDB Connected',

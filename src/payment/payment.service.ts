@@ -82,7 +82,7 @@ export class PaymentService {
         eventParams.description =
           '¡Hola, ' +
           customerName +
-          '! Es un gusto saludarte, gracias por agendar con AprendeCoding. En breve recibirás un correo con los detalles de tu asesoría, gracias por tu preferencia. ¡Nos vemos pronto!';
+          '! Es un gusto saludarte, gracias por agendar con BlocoManager. En breve recibirás un correo con los detalles de tu reunión, gracias por tu preferencia. ¡Nos vemos pronto!';
         // eventParams.guestMeetingLink = videoMeeting._links.guest_url.href;
         // eventParams.hostMeetingLink = videoMeeting._links.host_url.href;
         eventParams.hostMeetingLink = videoMeeting.data.join_url
@@ -118,15 +118,15 @@ export class PaymentService {
         \n
         \n Nos da mucho gusto saludarte. 
         \n
-        \n Te damos una cálida bienvenida de parte de aprendecoding.com :) 
-        \n Has agendado una sesión de asesoría. Más abajo te compartimos el link de la reunión. 
+        \n Te damos una cálida bienvenida de parte de blocomanager.com :) 
+        \n Has agendado una sesión de reunión. Más abajo te compartimos el link de la reunión. 
         \n 
         \n Te esperamos! 
         \n
         \n Link de videollamada: ${hostLink}
         \n
         \n Atentamente, 
-        \n aprendecoding.com
+        \n blocomanager.com
     `;
   }
 

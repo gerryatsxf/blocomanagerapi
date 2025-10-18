@@ -1,7 +1,7 @@
 {
-  "name": "asesorias",
+  "name": "blocomanager",
   "version": "0.0.1",
-  "description": "",
+  "description": "BlocoManager API - A NestJS application for managing meetings and appointments",
   "author": "",
   "private": true,
   "license": "UNLICENSED",

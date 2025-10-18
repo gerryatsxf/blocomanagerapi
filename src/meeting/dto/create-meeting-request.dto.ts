@@ -17,7 +17,7 @@ class CreateMeetingRequestDto {
   @ApiProperty({
     description: 'The display name of the meeting',
   })
-  displayName = 'AprendeCoding - Espacio de asesorías';
+  displayName = 'BlocoManager - Espacio de reuniones';
 }
 
 export default CreateMeetingRequestDto;
