@@ -36,7 +36,7 @@ import { ChatModule } from './chat/chat.module';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => {
-        const MONGO_DB_CONNECTION_URL = configService.get<string>('MONGO_DB_ATLAS_CONNECTION_STRING');
+        const MONGO_DB_CONNECTION_URL = configService.get<string>('MONGO_DB_CONNECTION_STRING');
         console.log('MongoDB Connection URL:', MONGO_DB_CONNECTION_URL);
         return {
           uri: MONGO_DB_CONNECTION_URL,

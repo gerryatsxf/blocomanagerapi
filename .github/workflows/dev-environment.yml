@@ -59,19 +59,15 @@ jobs:
     - name: Memory-optimized build and deploy
       env:
         # Security: Pass environment variables directly to containers, no .env files
-        MONGO_DB_ATLAS_CONNECTION_STRING: mongodb://admin_root:admin_root@mongodb-dev:27017/blocomanager?authSource=admin
+        MONGO_DB_CONNECTION_STRING: ${{ secrets.MONGO_DB_CONNECTION_STRING }}
         JWT_SECRET: ${{ secrets.JWT_SECRET }}
         JWT_EXPIRES_IN: ${{ vars.JWT_EXPIRES_IN }}
         STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
         STRIPE_PAYMENT_SUCCESS_WEBHOOK_SECRET_KEY: ${{ secrets.STRIPE_PAYMENT_SUCCESS_WEBHOOK_SECRET_KEY }}
         NYLAS_MAIN_ACCOUNT_EMAIL: ${{ vars.NYLAS_MAIN_ACCOUNT_EMAIL }}
-        NYLAS_CLIENT_ID: ${{ secrets.NYLAS_CLIENT_ID }}
-        NYLAS_CLIENT_SECRET: ${{ secrets.NYLAS_CLIENT_SECRET }}
-        NYLAS_MAIN_ACCOUNT_ACCESS_TOKEN: ${{ secrets.NYLAS_MAIN_ACCOUNT_ACCESS_TOKEN }}
         NYLAS_MAIN_ACCOUNT_API_KEY: ${{ secrets.NYLAS_MAIN_ACCOUNT_API_KEY }}
         NYLAS_MAIN_ACCOUNT_GRANT_ID: ${{ secrets.NYLAS_MAIN_ACCOUNT_GRANT_ID }}
         CREATE_MEETING_URL: ${{ secrets.CREATE_MEETING_URL }}
-        VONAGE_JWT_365_DAYS: ${{ secrets.VONAGE_JWT_365_DAYS }}
         NODE_ENV: development
         PORT: 3002
         DOCKER_ENV: true
