@@ -56,192 +56,66 @@ jobs:
         echo "📊 Memory after cleanup:"
         free -h
 
-    - name: Create environment file for deployment
-      run: |
-        echo "📝 Creating environment file for deployment..."
-        cat > env/deploy.env << EOF
-        # MongoDB Configuration
-        MONGO_DB_ATLAS_CONNECTION_STRING=mongodb://admin_root:admin_root@mongodb-dev:27017/blocomanager?authSource=admin
-        
-        # JWT Configuration
-        JWT_SECRET=${{ secrets.JWT_SECRET }}
-        JWT_EXPIRES_IN=${{ vars.JWT_EXPIRES_IN }}
-        
-        # Stripe Configuration
-        STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }}
-        STRIPE_PAYMENT_SUCCESS_WEBHOOK_SECRET_KEY=${{ secrets.STRIPE_PAYMENT_SUCCESS_WEBHOOK_SECRET_KEY }}
-        
-        # Nylas Configuration
-        NYLAS_MAIN_ACCOUNT_EMAIL=${{ vars.NYLAS_MAIN_ACCOUNT_EMAIL }}
-        NYLAS_CLIENT_ID=${{ secrets.NYLAS_CLIENT_ID }}
-        NYLAS_CLIENT_SECRET=${{ secrets.NYLAS_CLIENT_SECRET }}
-        NYLAS_MAIN_ACCOUNT_ACCESS_TOKEN=${{ secrets.NYLAS_MAIN_ACCOUNT_ACCESS_TOKEN }}
-        NYLAS_MAIN_ACCOUNT_API_KEY=${{ secrets.NYLAS_MAIN_ACCOUNT_API_KEY }}
-        NYLAS_MAIN_ACCOUNT_GRANT_ID=${{ secrets.NYLAS_MAIN_ACCOUNT_GRANT_ID }}
-        
-        # Webhook URLs
-        CREATE_MEETING_URL=${{ secrets.CREATE_MEETING_URL }}
-        
-        # Vonage Configuration
-        VONAGE_JWT_365_DAYS=${{ secrets.VONAGE_JWT_365_DAYS }}
-        
-        # Application Configuration
-        NODE_ENV=development
-        PORT=3002
-        DOCKER_ENV=true
-        EOF
-        
-        echo "✅ Environment file created"
-
     - name: Memory-optimized build and deploy
+      env:
+        # Security: Pass environment variables directly to containers, no .env files
+        MONGO_DB_ATLAS_CONNECTION_STRING: mongodb://admin_root:admin_root@mongodb-dev:27017/blocomanager?authSource=admin
+        JWT_SECRET: ${{ secrets.JWT_SECRET }}
+        JWT_EXPIRES_IN: ${{ vars.JWT_EXPIRES_IN }}
+        STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
+        STRIPE_PAYMENT_SUCCESS_WEBHOOK_SECRET_KEY: ${{ secrets.STRIPE_PAYMENT_SUCCESS_WEBHOOK_SECRET_KEY }}
+        NYLAS_MAIN_ACCOUNT_EMAIL: ${{ vars.NYLAS_MAIN_ACCOUNT_EMAIL }}
+        NYLAS_CLIENT_ID: ${{ secrets.NYLAS_CLIENT_ID }}
+        NYLAS_CLIENT_SECRET: ${{ secrets.NYLAS_CLIENT_SECRET }}
+        NYLAS_MAIN_ACCOUNT_ACCESS_TOKEN: ${{ secrets.NYLAS_MAIN_ACCOUNT_ACCESS_TOKEN }}
+        NYLAS_MAIN_ACCOUNT_API_KEY: ${{ secrets.NYLAS_MAIN_ACCOUNT_API_KEY }}
+        NYLAS_MAIN_ACCOUNT_GRANT_ID: ${{ secrets.NYLAS_MAIN_ACCOUNT_GRANT_ID }}
+        CREATE_MEETING_URL: ${{ secrets.CREATE_MEETING_URL }}
+        VONAGE_JWT_365_DAYS: ${{ secrets.VONAGE_JWT_365_DAYS }}
+        NODE_ENV: development
+        PORT: 3002
+        DOCKER_ENV: true
       run: |
-        echo "🚀 Building services with memory optimization..."
+        echo "🚀 Building and deploying services with Docker Compose..."
         
         # Monitor memory before build
         echo "📊 Memory before build:"
         free -h
         
-        # Use the deploy environment file
-        export COMPOSE_FILE=docker-compose.yml
-        
-        # Build services one by one to reduce memory pressure
-        echo "🏗️ Building MongoDB service first..."
-        docker compose --profile dev pull mongodb-dev || true
-        
-        echo "🏗️ Building NestJS service..."
-        # Build without memory flag (use resource limits in docker-compose instead)
-        docker compose --profile dev build --no-cache nestjs-dev
+        # Build and start services using Docker Compose only
+        echo "🏗️ Building and starting services with Docker Compose..."
+        docker compose --profile dev up -d --build
         
         echo "📊 Memory after build:"
         free -h
         
-        # Start MongoDB first
-        echo "🗄️ Starting MongoDB..."
-        docker compose --profile dev up -d mongodb-dev
-        
-        # Wait a moment for MongoDB to start
-        sleep 10
-        
-        # Then start API
-        echo "🚀 Starting API..."
-        docker compose --profile dev up -d nestjs-dev
-        
         echo "✅ Services started"
 
-    - name: Wait for services to be ready
+    - name: Wait for services and health check
       run: |
         echo "⏳ Waiting for services to be ready..."
+        sleep 30
         
-        # Wait for MongoDB to be ready
-        echo "Waiting for MongoDB..."
-        timeout 60 bash -c 'until docker compose exec -T mongodb-dev mongosh --eval "db.adminCommand('\''ping'\'')" > /dev/null 2>&1; do echo "MongoDB not ready yet..."; sleep 2; done' || {
-          echo "MongoDB failed to start within 60 seconds"
-          docker compose --profile dev logs mongodb-dev
-          exit 1
-        }
-        echo "✅ MongoDB is ready"
+        echo "📋 Container status:"
+        docker compose ps
         
-        # Wait for NestJS API to be ready
-        echo "Waiting for NestJS API..."
-        timeout 90 bash -c 'until curl -f http://localhost:3002 > /dev/null 2>&1; do echo "API not ready yet..."; sleep 3; done' || {
-          echo "API failed to start within 90 seconds"
-          docker compose --profile dev logs nestjs-dev
-          exit 1
-        }
-        echo "✅ NestJS API is ready"
+        echo "📝 Recent logs:"
+        docker compose logs --tail=50
+        
+        echo "🩺 Health check..."
+        curl -f http://localhost:3002/health || exit 1
+        
+        echo "✅ All services are healthy!"
 
-    - name: Health check and system monitoring
+    - name: Display service information
       run: |
-        echo "🔍 Performing health checks and system monitoring..."
+        echo "🎯 Service Information:"
+        echo "API URL: http://localhost:3002"
+        echo "API Documentation: http://localhost:3002/api-docs"
+        echo "MongoDB: mongodb://localhost:27020"
         
-        # Show system resources
-        echo "=== System Resources ==="
-        echo "💾 Memory Usage:"
+        echo "📊 Final memory usage:"
         free -h
-        echo "💿 Disk Usage:"
-        df -h /
-        echo "🖥️ CPU Load:"
-        uptime
         
-        # Show running containers with resource usage
-        echo "=== Running Containers ==="
-        docker compose --profile dev ps
-        echo "=== Container Resource Usage ==="
-        docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}"
-        
-        # Test API endpoints
-        echo "=== Testing API Health ==="
-        if curl -f http://localhost:3002 > /dev/null 2>&1; then
-          echo "✅ Root endpoint is responding"
-        else
-          echo "❌ Root endpoint failed"
-          echo "📊 System resources during failure:"
-          free -h
-          docker compose --profile dev logs nestjs-dev --tail 50
-          exit 1
-        fi
-        
-        # Check if Swagger is accessible
-        echo "=== Testing Swagger Documentation ==="
-        if curl -f http://localhost:3002/swagger > /dev/null 2>&1; then
-          echo "✅ Swagger documentation is accessible"
-        else
-          echo "⚠️  Swagger endpoint not accessible (this might be expected)"
-        fi
-        
-        # Show service logs for debugging
-        echo "=== Recent MongoDB Logs ==="
-        docker compose --profile dev logs mongodb-dev --tail 10
-        echo "=== Recent API Logs ==="
-        docker compose --profile dev logs nestjs-dev --tail 20
-        
-        echo "🎉 Development environment deployment successful!"
-
-    - name: Display deployment information
-      run: |
-        echo "📋 Deployment Information:"
-        echo "🌐 API URL: http://localhost:3002"
-        echo "📚 Swagger UI: http://localhost:3002/swagger"
-        echo "🗄️  MongoDB: localhost:27020"
-        echo ""
-        echo "📊 Final Resource Usage:"
-        echo "💾 Memory:"
-        free -h
-        echo "💿 Disk:"
-        df -h /
-        docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}"
-        echo ""
-        echo "🔧 To manage the deployment:"
-        echo "  Stop services: docker compose --profile dev down"
-        echo "  View logs: docker compose --profile dev logs -f [service-name]"
-        echo "  Restart: docker compose --profile dev restart [service-name]"
-        echo "  Monitor resources: docker stats"
-
-    - name: Memory-conscious cleanup on failure
-      if: failure()
-      run: |
-        echo "❌ Deployment failed, performing memory-conscious cleanup..."
-        
-        # Show system state before cleanup
-        echo "📊 System state before cleanup:"
-        free -h
-        df -h /
-        
-        # Stop services gracefully
-        docker compose --profile dev stop || true
-        sleep 5
-        
-        # Remove containers and volumes
-        docker compose --profile dev down --volumes --remove-orphans || true
-        
-        # Aggressive cleanup
-        docker system prune -af --volumes || true
-        
-        # Show logs for debugging
-        echo "=== Service Logs ==="
-        docker compose --profile dev logs --tail 100 || true
-        
-        # Final system state
-        echo "📊 System state after cleanup:"
-        free -h
-        df -h /
+        echo "🐳 Running containers:"
+        docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Ports}}"

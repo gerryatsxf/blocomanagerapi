@@ -37,9 +37,28 @@ services:
     container_name: blocomanager_dev
     ports:
       - "3002:3002"
+    # Environment variables (CI/CD will override these, local dev uses env_file)
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=${PORT:-3002}
+      - MONGO_DB_ATLAS_CONNECTION_STRING=${MONGO_DB_ATLAS_CONNECTION_STRING:-mongodb://admin_root:admin_root@mongodb-dev:27017/blocomanager?authSource=admin}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_PAYMENT_SUCCESS_WEBHOOK_SECRET_KEY=${STRIPE_PAYMENT_SUCCESS_WEBHOOK_SECRET_KEY}
+      - NYLAS_MAIN_ACCOUNT_EMAIL=${NYLAS_MAIN_ACCOUNT_EMAIL}
+      - NYLAS_CLIENT_ID=${NYLAS_CLIENT_ID}
+      - NYLAS_CLIENT_SECRET=${NYLAS_CLIENT_SECRET}
+      - NYLAS_MAIN_ACCOUNT_ACCESS_TOKEN=${NYLAS_MAIN_ACCOUNT_ACCESS_TOKEN}
+      - NYLAS_MAIN_ACCOUNT_API_KEY=${NYLAS_MAIN_ACCOUNT_API_KEY}
+      - NYLAS_MAIN_ACCOUNT_GRANT_ID=${NYLAS_MAIN_ACCOUNT_GRANT_ID}
+      - CREATE_MEETING_URL=${CREATE_MEETING_URL}
+      - VONAGE_JWT_365_DAYS=${VONAGE_JWT_365_DAYS}
+      - DOCKER_ENV=${DOCKER_ENV:-false}
+      - NODE_OPTIONS=--max-old-space-size=256
+    # For local development only (ignored if file doesn't exist)
     env_file: 
       - env/dev.env
-      - env/deploy.env  # This file is created during CI/CD, ignored if doesn't exist
     volumes:
       - .:/app
       - /app/node_modules
