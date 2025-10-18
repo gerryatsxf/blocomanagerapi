@@ -27,24 +27,13 @@ jobs:
         echo "💾 Available disk space:"
         df -h /
         
-        # Set memory-friendly Docker daemon settings
-        echo "🔧 Configuring Docker for low memory usage..."
-        sudo systemctl stop docker || true
-        sudo mkdir -p /etc/docker
-        sudo tee /etc/docker/daemon.json > /dev/null <<EOF
-        {
-          "storage-driver": "overlay2",
-          "log-driver": "json-file",
-          "log-opts": {
-            "max-size": "10m",
-            "max-file": "3"
-          },
-          "default-runtime": "runc",
-          "live-restore": true
-        }
-        EOF
-        sudo systemctl start docker
-        sleep 5
+        # Check if we have docker group permissions
+        echo "🔧 Checking Docker permissions..."
+        groups
+        
+        # Set Docker environment variables for memory optimization
+        echo "DOCKER_CLI_EXPERIMENTAL=enabled" >> $GITHUB_ENV
+        echo "BUILDKIT_PROGRESS=plain" >> $GITHUB_ENV
 
     - name: Aggressive cleanup for memory conservation
       run: |
@@ -120,8 +109,8 @@ jobs:
         docker compose --profile dev pull mongodb-dev || true
         
         echo "🏗️ Building NestJS service..."
-        # Use memory-limited build
-        docker compose --profile dev build --no-cache --memory=512m nestjs-dev
+        # Build without memory flag (use resource limits in docker-compose instead)
+        docker compose --profile dev build --no-cache nestjs-dev
         
         echo "📊 Memory after build:"
         free -h
