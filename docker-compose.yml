@@ -16,12 +16,24 @@ services:
       - blocomanager_network
     profiles:
       - dev
+    # Resource limits for memory conservation
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: '0.5'
+        reservations:
+          memory: 128M
+    # MongoDB memory optimization
+    command: --wiredTigerCacheSizeGB 0.25 --wiredTigerEngineConfigString="cache_size=128MB"
 
   # Development server (for local development)
   nestjs-dev:
     build:
       context: .
       dockerfile: Dockerfile.dev
+      args:
+        - NODE_ENV=development
     container_name: blocomanager_dev
     ports:
       - "3002:3002"
@@ -38,6 +50,17 @@ services:
     profiles:
       - dev
     restart: unless-stopped
+    # Resource limits for memory conservation
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: '1.0'
+        reservations:
+          memory: 256M
+    # Node.js memory optimization
+    environment:
+      - NODE_OPTIONS=--max-old-space-size=256
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3002"]
       interval: 30s

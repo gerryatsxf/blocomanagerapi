@@ -15,33 +15,57 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up environment variables
+    - name: Set up environment variables and memory optimization
       run: |
         echo "Setting up environment for development deployment..."
         echo "COMPOSE_PROJECT_NAME=blocomanager" >> $GITHUB_ENV
         echo "DOCKER_BUILDKIT=1" >> $GITHUB_ENV
+        
+        # Check available memory
+        echo "📊 System Memory Info:"
+        free -h
+        echo "💾 Available disk space:"
+        df -h /
+        
+        # Set memory-friendly Docker daemon settings
+        echo "🔧 Configuring Docker for low memory usage..."
+        sudo systemctl stop docker || true
+        sudo mkdir -p /etc/docker
+        sudo tee /etc/docker/daemon.json > /dev/null <<EOF
+        {
+          "storage-driver": "overlay2",
+          "log-driver": "json-file",
+          "log-opts": {
+            "max-size": "10m",
+            "max-file": "3"
+          },
+          "default-runtime": "runc",
+          "live-restore": true
+        }
+        EOF
+        sudo systemctl start docker
+        sleep 5
 
-    - name: Clean up existing containers and resources
+    - name: Aggressive cleanup for memory conservation
       run: |
-        echo "🧹 Cleaning up existing containers and resources..."
+        echo "🧹 Aggressive cleanup for memory conservation..."
         
-        # Stop and remove containers using docker compose (V2)
-        docker compose --profile dev down --volumes --remove-orphans || true
+        # Stop and remove all containers
+        docker stop $(docker ps -aq) 2>/dev/null || true
+        docker rm $(docker ps -aq) 2>/dev/null || true
         
-        # Clean up any orphaned containers with our project name
-        docker ps -a --filter "name=blocomanager" -q | xargs -r docker rm -f || true
+        # Remove all unused images, containers, networks, and build cache
+        docker system prune -af --volumes || true
         
-        # Clean up any containers using our ports
-        docker ps --filter "publish=3002" -q | xargs -r docker stop || true
-        docker ps -a --filter "publish=3002" -q | xargs -r docker rm || true
-        docker ps --filter "publish=27020" -q | xargs -r docker stop || true
-        docker ps -a --filter "publish=27020" -q | xargs -r docker rm || true
+        # Remove dangling images
+        docker image prune -af || true
         
-        # Clean up unused images and build cache
-        docker image prune -f || true
-        docker builder prune -f || true
+        # Clean build cache
+        docker builder prune -af || true
         
-        echo "✅ Cleanup completed"
+        # Show memory after cleanup
+        echo "📊 Memory after cleanup:"
+        free -h
 
     - name: Create environment file for deployment
       run: |
@@ -80,16 +104,38 @@ jobs:
         
         echo "✅ Environment file created"
 
-    - name: Build and deploy with Docker Compose
+    - name: Memory-optimized build and deploy
       run: |
-        echo "🚀 Building and deploying services with Docker Compose..."
+        echo "🚀 Building services with memory optimization..."
+        
+        # Monitor memory before build
+        echo "📊 Memory before build:"
+        free -h
         
         # Use the deploy environment file
         export COMPOSE_FILE=docker-compose.yml
         
-        # Build and start services with development profile
-        docker compose --profile dev build --no-cache
-        docker compose --profile dev up -d
+        # Build services one by one to reduce memory pressure
+        echo "🏗️ Building MongoDB service first..."
+        docker compose --profile dev pull mongodb-dev || true
+        
+        echo "🏗️ Building NestJS service..."
+        # Use memory-limited build
+        docker compose --profile dev build --no-cache --memory=512m nestjs-dev
+        
+        echo "📊 Memory after build:"
+        free -h
+        
+        # Start MongoDB first
+        echo "🗄️ Starting MongoDB..."
+        docker compose --profile dev up -d mongodb-dev
+        
+        # Wait a moment for MongoDB to start
+        sleep 10
+        
+        # Then start API
+        echo "🚀 Starting API..."
+        docker compose --profile dev up -d nestjs-dev
         
         echo "✅ Services started"
 
@@ -115,13 +161,24 @@ jobs:
         }
         echo "✅ NestJS API is ready"
 
-    - name: Health check and verification
+    - name: Health check and system monitoring
       run: |
-        echo "🔍 Performing health checks..."
+        echo "🔍 Performing health checks and system monitoring..."
         
-        # Show running containers
+        # Show system resources
+        echo "=== System Resources ==="
+        echo "💾 Memory Usage:"
+        free -h
+        echo "💿 Disk Usage:"
+        df -h /
+        echo "🖥️ CPU Load:"
+        uptime
+        
+        # Show running containers with resource usage
         echo "=== Running Containers ==="
         docker compose --profile dev ps
+        echo "=== Container Resource Usage ==="
+        docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}"
         
         # Test API endpoints
         echo "=== Testing API Health ==="
@@ -129,6 +186,8 @@ jobs:
           echo "✅ Root endpoint is responding"
         else
           echo "❌ Root endpoint failed"
+          echo "📊 System resources during failure:"
+          free -h
           docker compose --profile dev logs nestjs-dev --tail 50
           exit 1
         fi
@@ -156,20 +215,44 @@ jobs:
         echo "📚 Swagger UI: http://localhost:3002/swagger"
         echo "🗄️  MongoDB: localhost:27020"
         echo ""
-        echo "📊 Resource Usage:"
-        docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}"
+        echo "📊 Final Resource Usage:"
+        echo "💾 Memory:"
+        free -h
+        echo "💿 Disk:"
+        df -h /
+        docker stats --no-stream --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}"
         echo ""
         echo "🔧 To manage the deployment:"
         echo "  Stop services: docker compose --profile dev down"
         echo "  View logs: docker compose --profile dev logs -f [service-name]"
         echo "  Restart: docker compose --profile dev restart [service-name]"
+        echo "  Monitor resources: docker stats"
 
-    - name: Cleanup on failure
+    - name: Memory-conscious cleanup on failure
       if: failure()
       run: |
-        echo "❌ Deployment failed, cleaning up..."
-        docker compose --profile dev down --volumes || true
-        docker compose --profile dev logs
-        echo "=== System Information ==="
-        df -h
-        docker system df
+        echo "❌ Deployment failed, performing memory-conscious cleanup..."
+        
+        # Show system state before cleanup
+        echo "📊 System state before cleanup:"
+        free -h
+        df -h /
+        
+        # Stop services gracefully
+        docker compose --profile dev stop || true
+        sleep 5
+        
+        # Remove containers and volumes
+        docker compose --profile dev down --volumes --remove-orphans || true
+        
+        # Aggressive cleanup
+        docker system prune -af --volumes || true
+        
+        # Show logs for debugging
+        echo "=== Service Logs ==="
+        docker compose --profile dev logs --tail 100 || true
+        
+        # Final system state
+        echo "📊 System state after cleanup:"
+        free -h
+        df -h /
