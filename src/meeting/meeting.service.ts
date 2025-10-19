@@ -40,4 +40,29 @@ export class MeetingService {
       throw err;
     });
   }
+
+  async createMeetingWithParams(
+    timestamp: number,
+    invitee: string,
+    displayName = 'BlocoManager - Espacio de reuniones',
+  ): Promise<CreateMeetingResultDto> {
+    const BASE_URL = process.env.CREATE_MEETING_URL;
+    const url = `${BASE_URL}?timestamp=${timestamp}&invitee=${encodeURIComponent(invitee)}`;
+    
+    return firstValueFrom(
+      this.httpService
+        .post(
+          url,
+          { display_name: displayName },
+        )
+        .pipe(
+          tap((resp) => console.log(resp)),
+          map((resp) => plainToInstance(CreateMeetingResultDto, resp.data)),
+          tap((data) => console.log(data)),
+        ),
+    ).catch((err) => {
+      console.log(err);
+      throw err;
+    });
+  }
 }

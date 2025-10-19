@@ -10,6 +10,8 @@ import { IBooking } from '../booking/entities/booking.interface';
 import { CalendarService } from '../calendar/calendar.service';
 import { ScheduleEventParamsDto } from '../calendar/dto/schedule-event-params.dto';
 import { SessionService } from '../session/session.service';
+import { NylasService } from '../nylas/nylas.service';
+import { CreateMeetingResultDto } from 'src/meeting/dto/create-meeting-result.dto';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: '2022-11-15',
@@ -21,9 +23,9 @@ export class PaymentService {
     private notificationService: NotificationService,
     private readonly bookingService: BookingService,
     private readonly meetingService: MeetingService,
-
     private readonly calendarService: CalendarService,
     private readonly sessionService: SessionService,
+    private readonly nylasService: NylasService,
   ) {}
 
   async paymentSuccess(request, stripeSignature, endpointSecret, response) {
@@ -67,34 +69,45 @@ export class PaymentService {
         const customerEmail = stripeSessionCompleted.customer_details.email;
         const customerName = stripeSessionCompleted.customer_details.name;
 
-        // Create vonage meeting
-        // const videoMeeting = await this.meetingService.createMeeting();
+        // Create vonage meeting with timestamp and invitee parameters
+        const videoMeeting = await this.meetingService.createMeetingWithParams(
+          booking.meetingStartTimestamp,
+          customerName
+        );
         // console.log({ videoMeeting });
-        //
-        // Create calendar event
-        const eventParams = new ScheduleEventParamsDto();
-        eventParams.title = 'Asesoría de ' + customerName;
-        eventParams.description =
-          '¡Hola, ' +
-          customerName +
-          '! Es un gusto saludarte, gracias por agendar con BlocoManager. En breve recibirás un correo con los detalles de tu reunión, gracias por tu preferencia. ¡Nos vemos pronto!';
-        // eventParams.guestMeetingLink = videoMeeting._links.guest_url.href;
-        // eventParams.hostMeetingLink = videoMeeting._links.host_url.href;
-        eventParams.hostMeetingLink = ''
-        eventParams.guestMeetingLink = ''
-        eventParams.description = this.getEventDescription(
+        
+        // Update existing calendar event using videoMeeting.event_id
+        const eventTitle = 'Asesoría de ' + customerName;
+        const eventDescription = this.getEventDescription(
           customerName,
           customerEmail,
-          eventParams.hostMeetingLink,
+          '', // hostMeetingLink - keeping empty as in original
         );
-        eventParams.eventStartTime = booking.meetingStartTimestamp;
-        eventParams.eventEndTime = booking.meetingEndTimestamp;
-        eventParams.meetingType = booking.type;
-        
-        eventParams.customerEmail = customerEmail;
-        eventParams.customerName = customerName;
-        await this.calendarService.scheduleEvent(eventParams);
-        console.log('it was scheduled!');
+
+        await this.nylasService.updateEvent(videoMeeting.data.event_id, {
+          title: eventTitle,
+          description: eventDescription,
+          startTime: booking.meetingStartTimestamp,
+          endTime: booking.meetingEndTimestamp,
+          participants: [
+            {
+              name: customerName,
+              email: customerEmail,
+            },
+          ],
+          busy: true,
+          metadata: { event_type: booking.type },
+          notifications: [
+            {
+              type: 'email',
+              minutesBeforeEvent: 600,
+              subject: 'Recordatorio de reunión - BlocoManager',
+              body: 'Te recordamos tu próxima reunión con BlocoManager.',
+            },
+          ],
+          notifyParticipants: true,
+        });
+        console.log('Event updated successfully with event_id:', videoMeeting.data.event_id);
 
         // Update booking and session status
         await this.bookingService.updateBookingStatus(booking.id, 'paid');

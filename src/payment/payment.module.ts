@@ -18,6 +18,8 @@ import { AvailabilityService } from '../availability/availability.service';
 import { CalendarModule } from '../calendar/calendar.module';
 import { MeetingModule } from '../meeting/meeting.module';
 import { MeetingService } from '../meeting/meeting.service';
+import { NylasModule } from '../nylas/nylas.module';
+import { NylasService } from '../nylas/nylas.service';
 @Module({
   imports: [
     NotificationModule,
@@ -30,6 +32,7 @@ import { MeetingService } from '../meeting/meeting.service';
     AvailabilityModule,
     CalendarModule,
     MeetingModule,
+    NylasModule,
   ],
   controllers: [PaymentController],
   providers: [
@@ -40,6 +43,7 @@ import { MeetingService } from '../meeting/meeting.service';
     EncryptionService,
     AvailabilityService,
     MeetingService,
+    NylasService,
   ],
 })
 export class PaymentModule {}
