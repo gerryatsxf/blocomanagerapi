@@ -74,20 +74,7 @@ export class PaymentService {
           booking.meetingStartTimestamp,
           customerName
         );
-        
-        // Debug the videoMeeting response
-        console.log('=== videoMeeting Debug ===');
-        console.log('videoMeeting:', videoMeeting);
-        console.log('videoMeeting type:', typeof videoMeeting);
-        console.log('videoMeeting keys:', Object.keys(videoMeeting || {}));
-        if (videoMeeting?.data) {
-          console.log('videoMeeting.data:', videoMeeting.data);
-          console.log('videoMeeting.data type:', typeof videoMeeting.data);
-          console.log('videoMeeting.data keys:', Object.keys(videoMeeting.data || {}));
-          console.log('videoMeeting.data.event_id:', videoMeeting.data.event_id);
-        }
-        console.log('=== End Debug ===');
-        
+
         // Update existing calendar event using videoMeeting.event_id
         const eventTitle = 'Asesoría de ' + customerName;
         const eventDescription = this.getEventDescription(
