@@ -54,7 +54,13 @@ export class MeetingService {
     
     return firstValueFrom(
       this.httpService
-        .get(url)
+        .get(url, {
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          responseType: 'json'
+        })
         .pipe(
           tap((resp) => console.log('Meeting creation response:', resp.data)),
           tap((resp) => {
@@ -65,7 +71,14 @@ export class MeetingService {
             console.log('Raw response data stringified:', JSON.stringify(resp.data));
             console.log('=== End Webhook Debug ===');
           }),
-          map((resp) => plainToInstance(CreateMeetingResultDto, resp.data)),
+          map((resp) => {
+            // Parse string response to JSON if needed
+            let data = resp.data;
+            if (typeof data === 'string') {
+              data = JSON.parse(data);
+            }
+            return data;
+          }),
           tap((data) => console.log('Parsed meeting data:', data)),
         ),
     ).catch((err) => {
