@@ -19,24 +19,21 @@ export class MeetingService {
     displayName = 'BlocoManager - Espacio de reuniones',
   ): Promise<CreateMeetingResultDto> {
     const BASE_URL = process.env.CREATE_MEETING_URL;
-    // const headersRequest = {
-    //   Authorization: `Bearer ${process.env.VONAGE_JWT_365_DAYS}`,
-    // };
+    
+    if (!BASE_URL) {
+      throw new Error('CREATE_MEETING_URL environment variable is not defined');
+    }
 
     return firstValueFrom(
       this.httpService
-        .post(
-          BASE_URL,
-          { display_name: displayName },
-          // { headers: headersRequest },
-        )
+        .get(BASE_URL)
         .pipe(
-          tap((resp) => console.log(resp)),
+          tap((resp) => console.log('Meeting creation response:', resp.data)),
           map((resp) => plainToInstance(CreateMeetingResultDto, resp.data)),
-          tap((data) => console.log(data)),
+          tap((data) => console.log('Parsed meeting data:', data)),
         ),
     ).catch((err) => {
-      console.log(err);
+      console.error('Error creating meeting:', err.message);
       throw err;
     });
   }
@@ -47,21 +44,25 @@ export class MeetingService {
     displayName = 'BlocoManager - Espacio de reuniones',
   ): Promise<CreateMeetingResultDto> {
     const BASE_URL = process.env.CREATE_MEETING_URL;
+    
+    if (!BASE_URL) {
+      throw new Error('CREATE_MEETING_URL environment variable is not defined');
+    }
+    
     const url = `${BASE_URL}?timestamp=${timestamp}&invitee=${encodeURIComponent(invitee)}`;
+    console.log('Creating meeting with URL:', url);
     
     return firstValueFrom(
       this.httpService
-        .post(
-          url,
-          { display_name: displayName },
-        )
+        .get(url)
         .pipe(
-          tap((resp) => console.log(resp)),
+          tap((resp) => console.log('Meeting creation response:', resp.data)),
           map((resp) => plainToInstance(CreateMeetingResultDto, resp.data)),
-          tap((data) => console.log(data)),
+          tap((data) => console.log('Parsed meeting data:', data)),
         ),
     ).catch((err) => {
-      console.log(err);
+      console.error('Error creating meeting:', err.message);
+      console.error('URL attempted:', url);
       throw err;
     });
   }
