@@ -57,6 +57,14 @@ export class MeetingService {
         .get(url)
         .pipe(
           tap((resp) => console.log('Meeting creation response:', resp.data)),
+          tap((resp) => {
+            console.log('=== Webhook Response Debug ===');
+            console.log('Status:', resp.status);
+            console.log('Raw response data:', resp.data);
+            console.log('Raw response data type:', typeof resp.data);
+            console.log('Raw response data stringified:', JSON.stringify(resp.data));
+            console.log('=== End Webhook Debug ===');
+          }),
           map((resp) => plainToInstance(CreateMeetingResultDto, resp.data)),
           tap((data) => console.log('Parsed meeting data:', data)),
         ),

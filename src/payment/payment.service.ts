@@ -74,7 +74,19 @@ export class PaymentService {
           booking.meetingStartTimestamp,
           customerName
         );
-        // console.log({ videoMeeting });
+        
+        // Debug the videoMeeting response
+        console.log('=== videoMeeting Debug ===');
+        console.log('videoMeeting:', videoMeeting);
+        console.log('videoMeeting type:', typeof videoMeeting);
+        console.log('videoMeeting keys:', Object.keys(videoMeeting || {}));
+        if (videoMeeting?.data) {
+          console.log('videoMeeting.data:', videoMeeting.data);
+          console.log('videoMeeting.data type:', typeof videoMeeting.data);
+          console.log('videoMeeting.data keys:', Object.keys(videoMeeting.data || {}));
+          console.log('videoMeeting.data.event_id:', videoMeeting.data.event_id);
+        }
+        console.log('=== End Debug ===');
         
         // Update existing calendar event using videoMeeting.event_id
         const eventTitle = 'Asesoría de ' + customerName;
@@ -84,7 +96,11 @@ export class PaymentService {
           '', // hostMeetingLink - keeping empty as in original
         );
 
-        await this.nylasService.updateEvent(videoMeeting.data.event_id, {
+
+        console.log('Updating event with event_id:', videoMeeting);
+        const eventId = videoMeeting.data.event_id;
+
+        await this.nylasService.updateEvent(eventId, {
           title: eventTitle,
           description: eventDescription,
           startTime: booking.meetingStartTimestamp,
@@ -107,7 +123,7 @@ export class PaymentService {
           ],
           notifyParticipants: true,
         });
-        console.log('Event updated successfully with event_id:', videoMeeting.data.event_id);
+        console.log('Event updated successfully with event_id:', eventId);
 
         // Update booking and session status
         await this.bookingService.updateBookingStatus(booking.id, 'paid');
