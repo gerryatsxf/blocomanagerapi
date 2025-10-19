@@ -67,7 +67,7 @@ jobs:
         NYLAS_MAIN_ACCOUNT_EMAIL: ${{ vars.NYLAS_MAIN_ACCOUNT_EMAIL }}
         NYLAS_MAIN_ACCOUNT_API_KEY: ${{ secrets.NYLAS_MAIN_ACCOUNT_API_KEY }}
         NYLAS_MAIN_ACCOUNT_GRANT_ID: ${{ secrets.NYLAS_MAIN_ACCOUNT_GRANT_ID }}
-        CREATE_MEETING_URL: ${{ secrets.CREATE_MEETING_URL }}
+        CREATE_MEETING_URL: ${{ vars.CREATE_MEETING_URL }}
         NODE_ENV: development
         PORT: 3002
         DOCKER_ENV: true
@@ -98,7 +98,7 @@ jobs:
         NYLAS_MAIN_ACCOUNT_EMAIL: ${{ vars.NYLAS_MAIN_ACCOUNT_EMAIL }}
         NYLAS_MAIN_ACCOUNT_API_KEY: ${{ secrets.NYLAS_MAIN_ACCOUNT_API_KEY }}
         NYLAS_MAIN_ACCOUNT_GRANT_ID: ${{ secrets.NYLAS_MAIN_ACCOUNT_GRANT_ID }}
-        CREATE_MEETING_URL: ${{ secrets.CREATE_MEETING_URL }}
+        CREATE_MEETING_URL: ${{ vars.CREATE_MEETING_URL }}
         NODE_ENV: development
         PORT: 3002
         DOCKER_ENV: true
