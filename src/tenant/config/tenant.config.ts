@@ -1,9 +1,4 @@
-export interface TenantConfig {
-  tenantId: string;
-  domain: string;
-  name: string;
-  description?: string;
-}
+import { TenantConfig } from '../interfaces/tenant-config.interface';
 
 export const TENANT_DOMAIN_MAPPING: Record<string, string> = {
   'aprendecoding.com': 'aprendecoding',

@@ -12,7 +12,7 @@ import { ScheduleEventParamsDto } from '../calendar/dto/schedule-event-params.dt
 import { SessionService } from '../session/session.service';
 import { NylasService } from '../nylas/nylas.service';
 import { CreateMeetingResultDto } from 'src/meeting/dto/create-meeting-result.dto';
-import { TenantService } from '../config/tenant.service';
+import { TenantService } from '../tenant/tenant.service';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: '2022-11-15',

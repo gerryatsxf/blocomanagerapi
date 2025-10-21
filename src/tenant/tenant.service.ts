@@ -4,9 +4,9 @@ import {
   getTenantFromDomain, 
   getTenantConfig, 
   isValidTenant, 
-  TenantConfig,
   TENANT_DOMAIN_MAPPING
-} from '../config/multitenant.config';
+} from './config/tenant.config';
+import { TenantConfig } from './interfaces/tenant-config.interface';
 
 @Injectable()
 export class TenantService {

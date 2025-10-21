@@ -20,6 +20,7 @@ import { MeetingModule } from '../meeting/meeting.module';
 import { MeetingService } from '../meeting/meeting.service';
 import { NylasModule } from '../nylas/nylas.module';
 import { NylasService } from '../nylas/nylas.service';
+import { TenantModule } from '../tenant/tenant.module';
 @Module({
   imports: [
     NotificationModule,
@@ -33,6 +34,7 @@ import { NylasService } from '../nylas/nylas.service';
     CalendarModule,
     MeetingModule,
     NylasModule,
+    TenantModule,
   ],
   controllers: [PaymentController],
   providers: [

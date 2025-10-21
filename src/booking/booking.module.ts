@@ -14,6 +14,7 @@ import { SessionService } from '../session/session.service';
 import { SessionSchema } from '../session/entities/session.schema';
 import { EncryptionModule } from '../encryption/encryption.module';
 import { EncryptionService } from '../encryption/encryption.service';
+import { TenantModule } from '../tenant/tenant.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { EncryptionService } from '../encryption/encryption.service';
     EncryptionModule,
     CalendarModule,
     SessionModule,
+    TenantModule,
     MongooseModule.forFeature([{ name: 'Session', schema: SessionSchema }]),
     MongooseModule.forFeature([{ name: 'Booking', schema: BookingSchema }]),
   ],

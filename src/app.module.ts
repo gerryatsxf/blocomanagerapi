@@ -18,8 +18,10 @@ import { BookingModule } from './booking/booking.module';
 import { ProductModule } from './product/product.module';
 import { CartModule } from './cart/cart.module';
 import { ChatModule } from './chat/chat.module';
+import { TenantModule } from './tenant/tenant.module';
 @Module({
   imports: [
+    TenantModule,
     AuthModule,
     PaymentModule,
     MeetingModule,

@@ -4,7 +4,7 @@ import { UpdateSessionRequestDto } from './dto/update-session-request.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ISession } from './entities/session.interface';
-import { TenantService } from '../config/tenant.service';
+import { TenantService } from '../tenant/tenant.service';
 
 @Injectable()
 export class SessionService {

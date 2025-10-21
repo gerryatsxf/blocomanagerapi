@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { SessionService } from '../session/session.service';
-import { TenantService } from '../config/tenant.service';
+import { TenantService } from '../tenant/tenant.service';
 import { Request } from 'express';
 
 @Injectable()

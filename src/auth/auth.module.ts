@@ -9,7 +9,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EncryptionService } from '../encryption/encryption.service';
 import { JWT_EXPIRES_IN, JWT_SECRET } from './auth.constants';
 import { SessionModule } from '../session/session.module';
-import { TenantService } from '../config/tenant.service';
+import { TenantModule } from '../tenant/tenant.module';
 
 const jwtFactory = (configService: ConfigService) => ({
   secret: configService.get<string>(JWT_SECRET),
@@ -30,8 +30,9 @@ const options = {
     PassportModule,
     JwtModule.registerAsync(options),
     SessionModule,
+    TenantModule,
   ],
-  providers: [AuthService, JwtStrategy, EncryptionService, ConfigService, TenantService],
+  providers: [AuthService, JwtStrategy, EncryptionService, ConfigService],
   exports: [AuthService],
   controllers: [AuthController],
 })
