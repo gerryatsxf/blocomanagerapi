@@ -48,14 +48,6 @@ export function getTenantFromDomain(domain: string): string {
   // Remove port number if present (e.g., localhost:3002 -> localhost)
   const cleanDomain = domain.split(':')[0];
   
-  console.log('=== DOMAIN TO TENANT MAPPING DEBUG ===');
-  console.log('Original domain:', domain);
-  console.log('Clean domain (no port):', cleanDomain);
-  console.log('Available mappings:', TENANT_DOMAIN_MAPPING);
-  console.log('Found mapping:', TENANT_DOMAIN_MAPPING[cleanDomain]);
-  console.log('Final tenant:', TENANT_DOMAIN_MAPPING[cleanDomain] || 'blocomanager');
-  console.log('=== END MAPPING DEBUG ===');
-  
   return TENANT_DOMAIN_MAPPING[cleanDomain] || 'blocomanager';
 }
 
