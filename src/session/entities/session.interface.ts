@@ -7,6 +7,7 @@ export interface ISession extends mongoose.Document {
   timestamp: number;
   duration: number;
   timezone?: string;
+  tenant: string; // Required tenant identifier
 
   status?: string;
 

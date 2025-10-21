@@ -8,8 +8,8 @@ export class AuthController {
   constructor(private authService: AuthService) {}
 
   @Post('session')
-  async createSession(): Promise<any> {
-    return this.authService.createToken();
+  async createSession(@Request() request): Promise<any> {
+    return this.authService.createToken(request);
   }
 
   @Delete('session/:leadId')

@@ -4,16 +4,19 @@ import { UpdateSessionRequestDto } from './dto/update-session-request.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ISession } from './entities/session.interface';
+import { TenantService } from '../config/tenant.service';
 
 @Injectable()
 export class SessionService {
   constructor(
     @InjectModel('Session') private readonly sessionModel: Model<ISession>,
+    private readonly tenantService: TenantService,
   ) {}
-  async create(): Promise<ISession> {
+  async create(tenant?: string): Promise<ISession> {
     const createSessionDto = new CreateSessionRequestDto();
     createSessionDto.timestamp = Date.now();
     createSessionDto.duration = 1000 * 60 * 60; // 1 hour in milliseconds
+    createSessionDto.tenant = tenant || 'blocomanager'; // Default tenant if not provided
 
     const newSession = new this.sessionModel(createSessionDto);
     await newSession.save();
@@ -21,12 +24,13 @@ export class SessionService {
     return newSession;
   }
 
-  async createLeadSession(leadId: string): Promise<ISession> {
+  async createLeadSession(leadId: string, tenant?: string): Promise<ISession> {
     const createSessionDto = new CreateSessionRequestDto();
     createSessionDto.timestamp = Date.now();
     createSessionDto.duration = 1000 * 60 * 60; // 1 hour in milliseconds
     createSessionDto.leadId = leadId;
     createSessionDto.leadStage = 'st_greet'; // Default to 's1' for lead stage
+    createSessionDto.tenant = tenant || 'blocomanager'; // Default tenant if not provided
     console.log({ createSessionDto });
     const newSession = new this.sessionModel(createSessionDto);
     await newSession.save();

@@ -7,6 +7,7 @@ import { SessionService } from './session.service';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SessionSchema } from './entities/session.schema';
 import { EncryptionModule } from '../encryption/encryption.module';
+import { TenantService } from '../config/tenant.service';
 
 @Module({
   imports: [
@@ -15,8 +16,8 @@ import { EncryptionModule } from '../encryption/encryption.module';
     EncryptionModule,
   ],
   controllers: [], // No controllers for this module
-  providers: [SessionService], // Only the SessionService is provided here
-  exports: [SessionService], // SessionService is also exported for external use
+  providers: [SessionService, TenantService], // SessionService and TenantService are provided here
+  exports: [SessionService, TenantService], // Both services are exported for external use
 })
 /**
  * SessionModule class that defines and configures the session module.

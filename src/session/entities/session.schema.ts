@@ -32,6 +32,11 @@ export const SessionSchema = new mongoose.Schema({
     type: String,
     required: false,
   },
+  tenant: {
+    type: String,
+    required: true,
+    index: true, // Add index for efficient tenant-based queries
+  },
   
   // authenticityToken: {
   //   type: String,

@@ -1,12 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { SessionService } from '../session/session.service';
+import { TenantService } from '../config/tenant.service';
+import { Request } from 'express';
 
 @Injectable()
 export class AuthService {
   constructor(
     private sessionService: SessionService,
     private jwtService: JwtService, //private readonly encryptionService: EncryptionService,
+    private tenantService: TenantService,
   ) {}
 
   // async validateUser(email: string, password: string): Promise<any> {
@@ -29,8 +32,15 @@ export class AuthService {
   //   };
   // }
 
-  async createToken(): Promise<any> {
-    const session = await this.sessionService.create();
+  async createToken(request?: Request): Promise<any> {
+    // Extract tenant from request if provided, otherwise use default
+    let tenant = 'blocomanager'; // default tenant
+    if (request) {
+      tenant = this.tenantService.extractTenantFromRequest(request);
+      console.log(`Creating session for tenant: ${tenant} from host: ${request.get('host')}`);
+    }
+    
+    const session = await this.sessionService.create(tenant);
     return {
       access_token: this.jwtService.sign({
         id: session.id,

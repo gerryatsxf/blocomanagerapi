@@ -6,6 +6,6 @@ export class UpdateSessionRequestDto extends PartialType(
 ) {
   status: string;
   processingTimestamp: number;
-
   clientReferenceId: string;
+  tenant?: string; // Allow tenant updates if needed
 }
