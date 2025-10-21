@@ -4,7 +4,8 @@ import {
   getTenantFromDomain, 
   getTenantConfig, 
   isValidTenant, 
-  TenantConfig 
+  TenantConfig,
+  TENANT_DOMAIN_MAPPING
 } from '../config/multitenant.config';
 
 @Injectable()
@@ -16,8 +17,52 @@ export class TenantService {
    * @returns The tenant ID
    */
   extractTenantFromRequest(request: Request): string {
-    const host = request.get('host') || request.get('x-forwarded-host') || 'localhost';
-    return getTenantFromDomain(host);
+    // Get all possible host headers for debugging
+    const host = request.get('host');
+    const xForwardedHost = request.get('x-forwarded-host');
+    const xOriginalHost = request.get('x-original-host');
+    const referer = request.get('referer');
+    const origin = request.get('origin');
+    
+    console.log('=== TENANT EXTRACTION DEBUG ===');
+    console.log('Host:', host);
+    console.log('X-Forwarded-Host:', xForwardedHost);
+    console.log('X-Original-Host:', xOriginalHost);
+    console.log('Referer:', referer);
+    console.log('Origin:', origin);
+    console.log('URL:', request.url);
+    console.log('Method:', request.method);
+    console.log('All headers:', JSON.stringify(request.headers, null, 2));
+    
+    // Use Host header first, fallback to localhost
+    // Note: x-forwarded-host is not used for security reasons (can be spoofed)
+    let finalHost: string;
+    if (host) {
+      finalHost = host;
+      console.log('Using Host header');
+    } else {
+      finalHost = 'localhost';
+      console.log('Fallback to localhost');
+    }
+    
+    // Additional security: validate the host against allowed domains
+    const cleanHost = finalHost.split(':')[0];
+    const allowedDomains = Object.keys(TENANT_DOMAIN_MAPPING);
+    
+    if (!allowedDomains.includes(cleanHost)) {
+      console.warn(`⚠️  SECURITY WARNING: Unknown domain detected: ${cleanHost}`);
+      console.warn(`⚠️  Allowed domains: ${allowedDomains.join(', ')}`);
+      console.warn(`⚠️  Falling back to default tenant for security`);
+      // Return default tenant for unknown domains
+      finalHost = 'blocomanager.com';
+    }
+    
+    console.log('Final host selected:', finalHost);
+    const tenant = getTenantFromDomain(finalHost);
+    console.log('Extracted tenant:', tenant);
+    console.log('=== END TENANT DEBUG ===');
+    
+    return tenant;
   }
 
   /**
