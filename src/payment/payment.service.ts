@@ -12,6 +12,7 @@ import { ScheduleEventParamsDto } from '../calendar/dto/schedule-event-params.dt
 import { SessionService } from '../session/session.service';
 import { NylasService } from '../nylas/nylas.service';
 import { CreateMeetingResultDto } from 'src/meeting/dto/create-meeting-result.dto';
+import { TenantService } from '../config/tenant.service';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: '2022-11-15',
@@ -26,6 +27,7 @@ export class PaymentService {
     private readonly calendarService: CalendarService,
     private readonly sessionService: SessionService,
     private readonly nylasService: NylasService,
+    private readonly tenantService: TenantService,
   ) {}
 
   async paymentSuccess(request, stripeSignature, endpointSecret, response) {
@@ -75,9 +77,14 @@ export class PaymentService {
           customerName
         );
 
-        // Update existing calendar event using videoMeeting.event_id
-        const eventTitle = 'Asesoría de ' + customerName;
-        const eventDescription = this.getEventDescription(
+        // Get tenant from session for customized content
+        const tenant = sessionInfo.tenant || 'blocomanager';
+        const tenantConfig = this.tenantService.getTenantConfig(tenant);
+        
+        // Update existing calendar event using videoMeeting.event_id with tenant-specific content
+        const eventTitle = this.getTenantEventTitle(tenant, customerName);
+        const eventDescription = this.getTenantEventDescription(
+          tenant,
           customerName,
           customerEmail,
           '', // hostMeetingLink - keeping empty as in original
@@ -104,8 +111,8 @@ export class PaymentService {
             {
               type: 'email',
               minutesBeforeEvent: 600,
-              subject: 'Recordatorio de reunión - BlocoManager',
-              body: 'Te recordamos tu próxima reunión con BlocoManager.',
+              subject: this.getTenantNotificationSubject(tenant),
+              body: this.getTenantNotificationBody(tenant, customerName),
             },
           ],
           notifyParticipants: true,
@@ -139,6 +146,107 @@ export class PaymentService {
         \n Atentamente, 
         \n blocomanager.com
     `;
+  }
+
+  /**
+   * Get tenant-specific event title
+   */
+  getTenantEventTitle(tenant: string, customerName: string): string {
+    const tenantConfig = this.tenantService.getTenantConfig(tenant);
+    const brandName = tenantConfig?.name || 'BlocoManager';
+    
+    switch (tenant) {
+      case 'aprendecoding':
+        return `Sesión de Mentoría con ${brandName} - ${customerName}`;
+      case 'pedrorivero':
+        return `Consultoría Personalizada - ${customerName}`;
+      default:
+        return `Asesoría de ${customerName}`;
+    }
+  }
+
+  /**
+   * Get tenant-specific event description
+   */
+  getTenantEventDescription(tenant: string, customerName: string, customerEmail: string, hostLink: string): string {
+    const tenantConfig = this.tenantService.getTenantConfig(tenant);
+    const brandName = tenantConfig?.name || 'BlocoManager';
+    const domain = tenantConfig?.domain || 'blocomanager.com';
+
+    switch (tenant) {
+      case 'aprendecoding':
+        return `
+        ¡Hola, ${customerName}! 👋
+        
+        ¡Bienvenido/a a ${brandName}! 🎓
+        
+        Gracias por confiar en nosotros para tu crecimiento profesional en programación. 
+        Has agendado una sesión de mentoría personalizada donde resolveremos tus dudas 
+        y te ayudaremos a acelerar tu aprendizaje.
+        
+        📧 Email: ${customerEmail}
+        🔗 Link de videollamada: ${hostLink}
+        
+        ¡Nos vemos pronto y sigamos aprendiendo juntos!
+        
+        El equipo de ${brandName}
+        ${domain}
+        `;
+
+      case 'pedrorivero':
+        return `
+        Hola ${customerName},
+        
+        Es un placer tenerte como cliente. Has agendado una consultoría 
+        personalizada donde trabajaremos juntos en tu proyecto y objetivos específicos.
+        
+        Detalles de contacto: ${customerEmail}
+        Enlace de reunión: ${hostLink}
+        
+        Estoy emocionado de trabajar contigo.
+        
+        Saludos cordiales,
+        Pedro Rivero
+        ${domain}
+        `;
+
+      default:
+        return this.getEventDescription(customerName, customerEmail, hostLink);
+    }
+  }
+
+  /**
+   * Get tenant-specific notification subject
+   */
+  getTenantNotificationSubject(tenant: string): string {
+    const tenantConfig = this.tenantService.getTenantConfig(tenant);
+    const brandName = tenantConfig?.name || 'BlocoManager';
+
+    switch (tenant) {
+      case 'aprendecoding':
+        return `🎓 Recordatorio: Tu sesión de mentoría con ${brandName}`;
+      case 'pedrorivero':
+        return `📅 Recordatorio de tu consultoría personalizada`;
+      default:
+        return 'Recordatorio de reunión - BlocoManager';
+    }
+  }
+
+  /**
+   * Get tenant-specific notification body
+   */
+  getTenantNotificationBody(tenant: string, customerName: string): string {
+    const tenantConfig = this.tenantService.getTenantConfig(tenant);
+    const brandName = tenantConfig?.name || 'BlocoManager';
+
+    switch (tenant) {
+      case 'aprendecoding':
+        return `¡Hola ${customerName}! Te recordamos que tienes una sesión de mentoría programada con ${brandName}. ¡Te esperamos para seguir aprendiendo juntos! 🚀`;
+      case 'pedrorivero':
+        return `Hola ${customerName}, este es un recordatorio de tu consultoría personalizada. Nos vemos pronto para trabajar en tu proyecto.`;
+      default:
+        return `Te recordamos tu próxima reunión con ${brandName}.`;
+    }
   }
 
 
