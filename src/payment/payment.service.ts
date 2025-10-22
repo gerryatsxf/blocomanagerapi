@@ -127,9 +127,40 @@ export class PaymentService {
 
           // Create event directly in provider's Google Calendar
           console.log(`Creating calendar event for tenant: ${tenant}, provider: ${providerEmail}`);
+          
+          console.log(`🔍 DEBUG Payment - Booking timestamps:`, {
+            meetingStartTimestamp: booking.meetingStartTimestamp,
+            meetingStartTimestampType: typeof booking.meetingStartTimestamp,
+            meetingEndTimestamp: booking.meetingEndTimestamp,
+            meetingEndTimestampType: typeof booking.meetingEndTimestamp,
+            rawBooking: booking
+          });
+          
           try {
-            const eventStartTime = new Date(booking.meetingStartTimestamp);
-            const eventEndTime = new Date(booking.meetingEndTimestamp);
+            // Fix timestamp conversion - ensure we're working with milliseconds
+            let startTimestamp = booking.meetingStartTimestamp;
+            let endTimestamp = booking.meetingEndTimestamp;
+            
+            // If timestamps are in seconds, convert to milliseconds
+            if (startTimestamp < 1000000000000) {
+              startTimestamp = startTimestamp * 1000;
+              endTimestamp = endTimestamp * 1000;
+              console.log(`🔧 DEBUG - Converted timestamps from seconds to milliseconds`);
+            }
+            
+            const eventStartTime = new Date(startTimestamp);
+            const eventEndTime = new Date(endTimestamp);
+            
+            console.log(`🔍 DEBUG Payment - Converted dates:`, {
+              originalStart: booking.meetingStartTimestamp,
+              originalEnd: booking.meetingEndTimestamp,
+              convertedStart: startTimestamp,
+              convertedEnd: endTimestamp,
+              eventStartTime: eventStartTime.toISOString(),
+              eventEndTime: eventEndTime.toISOString(),
+              isValidStart: !isNaN(eventStartTime.getTime()),
+              isValidEnd: !isNaN(eventEndTime.getTime()),
+            });
 
             console.log(`🔍 DEBUG Payment - Calling createEvent with tokens:`, {
               tokensStructure: providerTokens.tokens ? Object.keys(providerTokens.tokens) : 'no tokens',
