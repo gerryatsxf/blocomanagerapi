@@ -100,6 +100,19 @@ export class GoogleCalendarService {
       this.logger.log(`🗓️ Creating Google Calendar event: ${eventData.title}`);
       this.logger.log(`📧 Attendees: ${eventData.attendees.map(a => a.email).join(', ')}`);
 
+      // First, let's verify calendar access and list calendars
+      try {
+        const calendarList = await calendar.calendarList.list();
+        this.logger.log(`📅 Available calendars for user:`, calendarList.data.items?.map(cal => ({
+          id: cal.id,
+          summary: cal.summary,
+          primary: cal.primary,
+          accessRole: cal.accessRole,
+        })));
+      } catch (listError) {
+        this.logger.warn(`⚠️ Could not list calendars: ${listError.message}`);
+      }
+
       const response = await calendar.events.insert({
         calendarId: 'primary',
         sendUpdates: 'all', // Send email invitations to all attendees
@@ -109,6 +122,16 @@ export class GoogleCalendarService {
 
       this.logger.log(`✅ Event created successfully: ${response.data.id}`);
       this.logger.log(`🔗 Event link: ${response.data.htmlLink}`);
+      this.logger.log(`📋 Full event response:`, {
+        id: response.data.id,
+        status: response.data.status,
+        created: response.data.created,
+        organizer: response.data.organizer,
+        attendees: response.data.attendees,
+        summary: response.data.summary,
+        start: response.data.start,
+        end: response.data.end,
+      });
 
       return {
         id: response.data.id,
@@ -186,8 +209,8 @@ export class GoogleCalendarService {
     }
   }
 
-  /**
-   * Test calendar access for a provider
+    /**
+   * Test calendar access and return basic info
    */
   async testCalendarAccess(providerTokens: any) {
     try {

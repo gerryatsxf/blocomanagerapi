@@ -289,6 +289,70 @@ export class GoogleOAuthController {
   }
 
   /**
+   * Test calendar event creation
+   * POST /api/admin/auth/google/test-event
+   */
+  @Post('test-event')
+  @ApiOperation({ summary: 'Test calendar event creation' })
+  async testEventCreation(@Tenant() tenantId: string) {
+    try {
+      // 🔐 VALIDATION: Check if tenant is authenticated
+      const authCheck = await this.googleOAuthService.isTenantAuthenticated(tenantId);
+      if (!authCheck.isAuthenticated) {
+        throw new HttpException(authCheck.message, HttpStatus.UNAUTHORIZED);
+      }
+
+      const firstProvider = authCheck.authenticatedProviders?.[0] || authCheck.email;
+      const providerTokens = await this.googleOAuthService.getStoredTokens(tenantId, firstProvider);
+      
+      if (!providerTokens) {
+        throw new HttpException('No Google tokens found for provider', HttpStatus.UNAUTHORIZED);
+      }
+
+      this.logger.log(`🧪 Creating TEST event for tenant ${tenantId}, provider: ${firstProvider}`);
+
+      // Create a simple test event 1 hour from now
+      const startTime = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
+      const endTime = new Date(Date.now() + 120 * 60 * 1000); // 2 hours from now
+
+      const event = await this.googleCalendarService.createEvent(providerTokens.tokens, {
+        title: `🧪 TEST EVENT - ${tenantId}`,
+        description: `This is a test event created via API for tenant ${tenantId}`,
+        startTime: startTime,
+        endTime: endTime,
+        attendees: [
+          {
+            email: 'onlinepaymentsgerry1234@gmail.com',
+            displayName: 'Test End User',
+          },
+        ],
+        timezone: 'America/Mexico_City',
+      });
+
+      return {
+        success: true,
+        message: 'Test event created successfully',
+        data: {
+          eventId: event.id,
+          eventLink: event.htmlLink,
+          startTime: startTime.toISOString(),
+          endTime: endTime.toISOString(),
+          organizer: event.organizer,
+          attendees: event.attendees,
+          tenant: tenantId,
+          provider: firstProvider,
+        },
+      };
+    } catch (error) {
+      this.logger.error(`Error creating test event for tenant ${tenantId}:`, error);
+      throw new HttpException(
+        `Error creating test event: ${error.message}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  /**
    * Test calendar connection for the authenticated tenant
    * GET /api/admin/auth/google/test-connection
    */
