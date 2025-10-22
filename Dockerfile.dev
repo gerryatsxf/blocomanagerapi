@@ -18,7 +18,7 @@ RUN npm ci --no-audit --prefer-offline \
 COPY . .
 
 # Build the application and check output
-RUN NODE_OPTIONS="--max-old-space-size=1024 --optimize-for-size" npm run build && \
+RUN NODE_OPTIONS="--max-old-space-size=2048" npm run build && \
     echo "Build completed. Checking dist directory:" && \
     ls -la dist/ && \
     echo "Contents of dist/main*:" && \
