@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { google } from 'googleapis';
 import { ConfigService } from '@nestjs/config';
-import { getTenantConfig, isEmailAuthorizedForTenant } from './config/tenant-email.config';
+import { getTenantConfig, isEmailAuthorizedForTenant, getAuthorizedProviders } from './config/tenant-email.config';
 
 @Injectable()
 export class GoogleOAuthService {
@@ -32,26 +32,38 @@ export class GoogleOAuthService {
 
   // TODO: Implement proper database storage for tenant OAuth tokens
   // For now, using in-memory storage (this should be replaced with database storage)
+  // Key format: "tenantId:email" -> tokens
   private tenantTokens = new Map<string, {
     tokens: any;
     grantId?: string;
     userEmail: string;
+    tenantId: string;
     connectedAt: Date;
   }>();
 
   /**
-   * Store OAuth tokens for a tenant
+   * Generate storage key for tenant-email combination
+   */
+  private getStorageKey(tenantId: string, email: string): string {
+    return `${tenantId}:${email.toLowerCase()}`;
+  }
+
+  /**
+   * Store OAuth tokens for a specific tenant-email combination
    */
   async storeTokensForTenant(tenantId: string, tokens: any, userEmail: string, grantId?: string) {
-    this.tenantTokens.set(tenantId, {
+    const storageKey = this.getStorageKey(tenantId, userEmail);
+    
+    this.tenantTokens.set(storageKey, {
       tokens,
       grantId,
       userEmail,
+      tenantId,
       connectedAt: new Date(),
     });
     
-    console.log(`🔐 Stored tokens for tenant ${tenantId}:`, {
-      userEmail,
+    console.log(`🔐 Stored tokens for tenant ${tenantId} with provider ${userEmail}:`, {
+      storageKey,
       grantId: grantId || 'Not provided',
       hasAccessToken: !!tokens.access_token,
       hasRefreshToken: !!tokens.refresh_token,
@@ -59,35 +71,75 @@ export class GoogleOAuthService {
   }
 
   /**
-   * Get stored grant ID for a tenant
+   * Get stored grant ID for a tenant (uses first authenticated provider for now)
+   * TODO: In the future, this should specify which provider's grant to use
    */
-  async getStoredGrantId(tenantId: string): Promise<string | null> {
-    const tenantData = this.tenantTokens.get(tenantId);
-    
-    // If we have stored tokens, return the main grant ID for now
-    // TODO: In production, each tenant should have their own grant ID
-    if (tenantData) {
-      const mainGrantId = this.configService.get<string>('NYLAS_MAIN_ACCOUNT_GRANT_ID');
-      console.log(`🔑 Using main grant ID for tenant ${tenantId}: ${mainGrantId}`);
-      return mainGrantId;
+  async getStoredGrantId(tenantId: string, providerEmail?: string): Promise<string | null> {
+    if (providerEmail) {
+      // Get grant for specific provider
+      const storageKey = this.getStorageKey(tenantId, providerEmail);
+      const tenantData = this.tenantTokens.get(storageKey);
+      
+      if (tenantData) {
+        const mainGrantId = this.configService.get<string>('NYLAS_MAIN_ACCOUNT_GRANT_ID');
+        console.log(`🔑 Using main grant ID for tenant ${tenantId} provider ${providerEmail}: ${mainGrantId}`);
+        return mainGrantId;
+      }
+    } else {
+      // Get grant for any authenticated provider for this tenant
+      for (const [key, data] of this.tenantTokens.entries()) {
+        if (data.tenantId === tenantId) {
+          const mainGrantId = this.configService.get<string>('NYLAS_MAIN_ACCOUNT_GRANT_ID');
+          console.log(`🔑 Using main grant ID for tenant ${tenantId} (any provider): ${mainGrantId}`);
+          return mainGrantId;
+        }
+      }
     }
     
     return null;
   }
 
   /**
-   * Get stored tokens for a tenant
+   * Get stored tokens for a specific tenant-email combination
    */
-  async getStoredTokens(tenantId: string) {
-    return this.tenantTokens.get(tenantId);
+  async getStoredTokens(tenantId: string, providerEmail?: string) {
+    if (providerEmail) {
+      const storageKey = this.getStorageKey(tenantId, providerEmail);
+      return this.tenantTokens.get(storageKey);
+    }
+    
+    // If no specific email provided, return first match for tenant
+    for (const [key, data] of this.tenantTokens.entries()) {
+      if (data.tenantId === tenantId) {
+        return data;
+      }
+    }
+    
+    return null;
   }
 
   /**
-   * Check if a tenant is authenticated with the correct email
+   * Get all authenticated providers for a tenant
    */
-  async isTenantAuthenticated(tenantId: string): Promise<{
+  async getAuthenticatedProviders(tenantId: string): Promise<string[]> {
+    const providers: string[] = [];
+    
+    for (const [key, data] of this.tenantTokens.entries()) {
+      if (data.tenantId === tenantId) {
+        providers.push(data.userEmail);
+      }
+    }
+    
+    return providers;
+  }
+
+  /**
+   * Check if a tenant has any authenticated providers or a specific provider
+   */
+  async isTenantAuthenticated(tenantId: string, providerEmail?: string): Promise<{
     isAuthenticated: boolean;
     email?: string;
+    authenticatedProviders?: string[];
     message: string;
   }> {
     try {
@@ -99,28 +151,39 @@ export class GoogleOAuthService {
         };
       }
 
-      const storedTokens = await this.getStoredTokens(tenantId);
-      if (!storedTokens) {
-        return {
-          isAuthenticated: false,
-          message: `Tenant '${tenantId}' has not authenticated yet. Expected email: ${tenantConfig.adminEmail}`,
-        };
-      }
+      if (providerEmail) {
+        // Check specific provider
+        const storedTokens = await this.getStoredTokens(tenantId, providerEmail);
+        if (!storedTokens) {
+          return {
+            isAuthenticated: false,
+            message: `Provider '${providerEmail}' has not authenticated for tenant '${tenantId}'`,
+          };
+        }
 
-      // Verify the stored email matches the expected email for this tenant
-      if (!isEmailAuthorizedForTenant(tenantId, storedTokens.userEmail)) {
         return {
-          isAuthenticated: false,
+          isAuthenticated: true,
           email: storedTokens.userEmail,
-          message: `Email mismatch for tenant '${tenantId}'. Expected: ${tenantConfig.adminEmail}, Found: ${storedTokens.userEmail}`,
+          message: `Provider '${providerEmail}' is authenticated for tenant '${tenantId}'`,
+        };
+      } else {
+        // Check if tenant has any authenticated providers
+        const authenticatedProviders = await this.getAuthenticatedProviders(tenantId);
+        
+        if (authenticatedProviders.length === 0) {
+          return {
+            isAuthenticated: false,
+            authenticatedProviders: [],
+            message: `No providers authenticated for tenant '${tenantId}'. Authorized providers: ${tenantConfig.authorizedProviders.join(', ')}`,
+          };
+        }
+
+        return {
+          isAuthenticated: true,
+          authenticatedProviders,
+          message: `Tenant '${tenantId}' has ${authenticatedProviders.length} authenticated provider(s): ${authenticatedProviders.join(', ')}`,
         };
       }
-
-      return {
-        isAuthenticated: true,
-        email: storedTokens.userEmail,
-        message: `Tenant '${tenantId}' is authenticated with ${storedTokens.userEmail}`,
-      };
     } catch (error) {
       return {
         isAuthenticated: false,
@@ -164,12 +227,12 @@ export class GoogleOAuthService {
       // 🔐 VALIDATION: Check if the authenticated email is authorized for this tenant
       if (!isEmailAuthorizedForTenant(tenantId, userEmail)) {
         const tenantConfig = getTenantConfig(tenantId);
-        const expectedEmail = tenantConfig?.adminEmail || 'unknown';
+        const authorizedEmails = tenantConfig?.authorizedProviders || [];
         
         throw new Error(
           `Unauthorized email for tenant '${tenantId}'. ` +
-          `Expected: ${expectedEmail}, but got: ${userEmail}. ` +
-          `Please authenticate with the correct admin email for this tenant.`
+          `Email '${userEmail}' is not authorized. ` +
+          `Authorized provider emails: ${authorizedEmails.join(', ')}`
         );
       }
 

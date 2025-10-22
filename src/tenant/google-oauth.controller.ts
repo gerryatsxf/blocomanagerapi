@@ -6,7 +6,7 @@ import { GoogleOAuthService } from './google-oauth.service';
 import { NylasService } from '../nylas/nylas.service';
 import { CalendarService } from '../calendar/calendar.service';
 import { ScheduleEventParamsDto } from '../calendar/dto/schedule-event-params.dto';
-import { getTenantConfig } from './config/tenant-email.config';
+import { getTenantConfig, getAuthorizedProviders } from './config/tenant-email.config';
 import { Tenant } from './decorators/tenant.decorator';
 
 @Controller('api/admin/auth/google')
@@ -148,12 +148,13 @@ export class GoogleOAuthController {
           id: tenantConfig.tenantId,
           name: tenantConfig.name,
           domain: tenantConfig.domain,
-          expectedEmail: tenantConfig.adminEmail,
+          adminEmail: tenantConfig.adminEmail,
+          authorizedProviders: tenantConfig.authorizedProviders,
           isActive: tenantConfig.isActive,
         },
         authentication: {
           isAuthenticated: authCheck.isAuthenticated,
-          authenticatedEmail: authCheck.email,
+          authenticatedProviders: authCheck.authenticatedProviders || [],
           message: authCheck.message,
         },
       };

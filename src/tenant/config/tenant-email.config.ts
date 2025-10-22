@@ -1,12 +1,13 @@
 /**
  * Tenant Configuration
- * Maps tenant IDs to their associated configuration including admin emails
+ * Maps tenant IDs to their configuration including authorized provider emails
  */
 
 export interface TenantConfig {
   tenantId: string;
   name: string;
-  adminEmail: string;
+  adminEmail: string; // Admin email for the tenant
+  authorizedProviders: string[]; // List of provider emails that can authenticate for this tenant
   domain: string;
   isActive: boolean;
 }
@@ -16,6 +17,12 @@ export const TENANT_CONFIG_MAP: Record<string, TenantConfig> = {
     tenantId: 'blocomanager',
     name: 'BlocoManager',
     adminEmail: 'blocomanager@gmail.com',
+    authorizedProviders: [
+      'blocomanager@gmail.com',
+      'aprendecoding.asesorias@gmail.com',
+      'pedrorivero@gmail.com',
+      // Add more provider emails as needed
+    ],
     domain: 'api.blocomanager.com',
     isActive: true,
   },
@@ -23,6 +30,9 @@ export const TENANT_CONFIG_MAP: Record<string, TenantConfig> = {
     tenantId: 'aprendecoding',
     name: 'AprendeCoding',
     adminEmail: 'aprendecoding.asesorias@gmail.com',
+    authorizedProviders: [
+      'aprendecoding.asesorias@gmail.com',
+    ],
     domain: 'api.aprendecoding.com',
     isActive: true,
   },
@@ -30,6 +40,9 @@ export const TENANT_CONFIG_MAP: Record<string, TenantConfig> = {
     tenantId: 'pedrorivero',
     name: 'Pedro Rivero',
     adminEmail: 'pedrorivero@gmail.com',
+    authorizedProviders: [
+      'pedrorivero@gmail.com',
+    ],
     domain: 'api.pedrorivero.com',
     isActive: true,
   },
@@ -52,13 +65,35 @@ export function getTenantByEmail(email: string): TenantConfig | null {
 }
 
 /**
- * Validate if an email is authorized for a tenant
+ * Validate if an email is authorized for a tenant (admin or provider)
  */
 export function isEmailAuthorizedForTenant(tenantId: string, email: string): boolean {
   const tenantConfig = getTenantConfig(tenantId);
   if (!tenantConfig) return false;
   
-  return tenantConfig.adminEmail.toLowerCase() === email.toLowerCase();
+  // Check if email is in the authorized providers list
+  return tenantConfig.authorizedProviders.some(
+    authorizedEmail => authorizedEmail.toLowerCase() === email.toLowerCase()
+  );
+}
+
+/**
+ * Check if an email is a provider (not the admin) for a tenant
+ */
+export function isProviderEmail(tenantId: string, email: string): boolean {
+  const tenantConfig = getTenantConfig(tenantId);
+  if (!tenantConfig) return false;
+  
+  return tenantConfig.adminEmail.toLowerCase() !== email.toLowerCase() &&
+         isEmailAuthorizedForTenant(tenantId, email);
+}
+
+/**
+ * Get all authorized providers for a tenant
+ */
+export function getAuthorizedProviders(tenantId: string): string[] {
+  const tenantConfig = getTenantConfig(tenantId);
+  return tenantConfig?.authorizedProviders || [];
 }
 
 /**
