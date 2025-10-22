@@ -71,6 +71,8 @@ export class GoogleOAuthController {
         data: {
           email: result.email,
           connectedAt: result.connectedAt,
+          detectedTenant: result.detectedTenant,
+          authorizedTenants: result.authorizedTenants,
         },
       });
     } catch (error) {

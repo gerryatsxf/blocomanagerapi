@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { google } from 'googleapis';
 import { ConfigService } from '@nestjs/config';
-import { getTenantConfig, isEmailAuthorizedForTenant, getAuthorizedProviders } from './config/tenant-email.config';
+import { getTenantConfig, isEmailAuthorizedForTenant, getAuthorizedProviders, TENANT_CONFIG_MAP } from './config/tenant-email.config';
 
 @Injectable()
 export class GoogleOAuthService {
@@ -221,7 +221,7 @@ export class GoogleOAuthService {
   /**
    * Handle OAuth callback and exchange code for tokens
    */
-  async handleCallback(code: string, tenantId: string): Promise<any> {
+  async handleCallback(code: string, requestedTenant: string): Promise<any> {
     try {
       // Exchange authorization code for tokens
       const { tokens } = await this.oauth2Client.getToken(code);
@@ -233,25 +233,37 @@ export class GoogleOAuthService {
       
       const userEmail = userInfo.data.email;
 
-      // 🔐 VALIDATION: Check if the authenticated email is authorized for this tenant
-      if (!isEmailAuthorizedForTenant(tenantId, userEmail)) {
-        const tenantConfig = getTenantConfig(tenantId);
-        const authorizedEmails = tenantConfig?.authorizedProviders || [];
-        
+      // � AUTO-DETECT TENANT: Find which tenant(s) authorize this email
+      const authorizedTenants: string[] = [];
+      
+      // Check all tenants to see which ones authorize this email
+      const allTenantConfigs = Object.values(TENANT_CONFIG_MAP);
+      for (const tenantConfig of allTenantConfigs) {
+        if (isEmailAuthorizedForTenant(tenantConfig.tenantId, userEmail)) {
+          authorizedTenants.push(tenantConfig.tenantId);
+        }
+      }
+
+      if (authorizedTenants.length === 0) {
         throw new Error(
-          `Unauthorized email for tenant '${tenantId}'. ` +
-          `Email '${userEmail}' is not authorized. ` +
-          `Authorized provider emails: ${authorizedEmails.join(', ')}`
+          `Email '${userEmail}' is not authorized for any tenant. ` +
+          `Please contact your administrator to add this email to the authorized providers list.`
         );
       }
 
-      console.log(`✅ Email validation passed for tenant ${tenantId}: ${userEmail}`);
+      // Use the first authorized tenant (or the requested one if it's in the list)
+      let actualTenant = authorizedTenants[0];
+      if (authorizedTenants.includes(requestedTenant)) {
+        actualTenant = requestedTenant;
+      }
 
-      // NOTE: No longer using Nylas grants - storing tokens for direct Google Calendar API usage
-      console.log(`🔗 Storing Google OAuth tokens for provider ${userEmail} in tenant ${tenantId}`);
+      console.log(`✅ Email ${userEmail} detected for tenant: ${actualTenant} (authorized tenants: ${authorizedTenants.join(', ')})`);
+
+      // Store tokens under the detected tenant
+      console.log(`🔗 Storing Google OAuth tokens for provider ${userEmail} in tenant ${actualTenant}`);
 
       // Store tokens securely (you'll need to implement this)
-      await this.storeGoogleTokens(tenantId, {
+      await this.storeGoogleTokens(actualTenant, {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
         expiryDate: tokens.expiry_date,
@@ -262,6 +274,8 @@ export class GoogleOAuthService {
       return {
         email: userEmail,
         connectedAt: new Date(),
+        detectedTenant: actualTenant,
+        authorizedTenants: authorizedTenants,
         // grantId removed - using Google Calendar API directly
       };
     } catch (error) {
