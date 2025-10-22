@@ -7,10 +7,20 @@ export class GoogleOAuthService {
   private oauth2Client: any;
 
   constructor(private configService: ConfigService) {
+    const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
+    const clientSecret = this.configService.get<string>('GOOGLE_CLIENT_SECRET');
+    const redirectUri = this.configService.get<string>('GOOGLE_REDIRECT_URI');
+    
+    console.log('🔧 Google OAuth Config:', {
+      clientId: clientId ? `${clientId.substring(0, 10)}...` : 'MISSING',
+      clientSecret: clientSecret ? 'SET' : 'MISSING',
+      redirectUri: redirectUri || 'MISSING'
+    });
+
     this.oauth2Client = new google.auth.OAuth2(
-      this.configService.get<string>('GOOGLE_CLIENT_ID'),
-      this.configService.get<string>('GOOGLE_CLIENT_SECRET'),
-      this.configService.get<string>('GOOGLE_REDIRECT_URI'),
+      clientId,
+      clientSecret,
+      redirectUri,
     );
   }
 
@@ -23,6 +33,8 @@ export class GoogleOAuthService {
    * Generate Google OAuth authorization URL
    */
   async generateAuthUrl(tenantId: string): Promise<string> {
+    console.log('🔗 Generating auth URL for tenant:', tenantId);
+    
     const authUrl = this.oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: this.SCOPES,
@@ -30,6 +42,7 @@ export class GoogleOAuthService {
       prompt: 'consent', // Force consent screen to get refresh token
     });
 
+    console.log('🔗 Generated auth URL:', authUrl);
     return authUrl;
   }
 

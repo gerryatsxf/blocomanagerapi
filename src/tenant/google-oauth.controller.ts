@@ -1,4 +1,4 @@
-import { Controller, Get, Req, Res, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Req, Res, UseGuards, Query, Logger } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { GoogleOAuthService } from './google-oauth.service';
 import { TenantGuard } from './guards/tenant.guard';
@@ -7,6 +7,8 @@ import { Tenant } from './decorators/tenant.decorator';
 @Controller('api/admin/auth/google')
 @UseGuards(TenantGuard)
 export class GoogleOAuthController {
+  private readonly logger = new Logger(GoogleOAuthController.name);
+
   constructor(private readonly googleOAuthService: GoogleOAuthService) {}
 
   /**
@@ -19,9 +21,12 @@ export class GoogleOAuthController {
     @Res() res: Response,
   ) {
     try {
+      this.logger.debug(`Initiating Google OAuth for tenant: ${tenantId}`);
       const authUrl = await this.googleOAuthService.generateAuthUrl(tenantId);
+      this.logger.debug(`Generated auth URL: ${authUrl}`);
       return res.redirect(authUrl);
     } catch (error) {
+      this.logger.error(`Error initiating Google OAuth: ${error.message}`);
       return res.status(500).json({
         success: false,
         message: 'Error initiating Google OAuth',
