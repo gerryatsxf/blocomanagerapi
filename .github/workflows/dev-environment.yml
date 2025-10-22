@@ -102,6 +102,9 @@ jobs:
         NYLAS_MAIN_ACCOUNT_API_KEY: ${{ secrets.NYLAS_MAIN_ACCOUNT_API_KEY }}
         NYLAS_MAIN_ACCOUNT_GRANT_ID: ${{ secrets.NYLAS_MAIN_ACCOUNT_GRANT_ID }}
         CREATE_MEETING_URL: ${{ vars.CREATE_MEETING_URL }}
+        GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+        GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+        GOOGLE_REDIRECT_URI: ${{ vars.GOOGLE_REDIRECT_URI }}
         NODE_ENV: development
         PORT: 3002
         DOCKER_ENV: true
