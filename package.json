@@ -39,6 +39,7 @@
     "class-validator": "^0.14.0",
     "dotenv": "^16.4.7",
     "dotenv-cli": "^8.0.0",
+    "googleapis": "^164.1.0",
     "hash36": "^1.0.0",
     "luxon": "^3.3.0",
     "mongoose": "^7.4.1",

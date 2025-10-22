@@ -1,6 +1,7 @@
 // Main module
 export { TenantModule } from './tenant.module';
 export { TenantService } from './tenant.service';
+export { GoogleOAuthService } from './google-oauth.service';
 
 // Interfaces and types
 export { 
