@@ -55,6 +55,17 @@ export class GoogleOAuthService {
   async storeTokensForTenant(tenantId: string, tokens: any, userEmail: string, grantId?: string) {
     const storageKey = this.getStorageKey(tenantId, userEmail);
     
+    console.log(`🔍 DEBUG - storeTokensForTenant called with:`, {
+      tenantId,
+      userEmail,
+      storageKey,
+      tokensKeys: Object.keys(tokens),
+      hasAccessToken: !!tokens.accessToken,
+      hasRefreshToken: !!tokens.refreshToken,
+      hasAccess_token: !!tokens.access_token,
+      hasRefresh_token: !!tokens.refresh_token,
+    });
+    
     this.tenantTokens.set(storageKey, {
       tokens,
       grantId,
@@ -66,8 +77,10 @@ export class GoogleOAuthService {
     
     console.log(`🔐 Stored tokens for tenant ${tenantId} with provider ${userEmail}:`, {
       storageKey,
-      hasAccessToken: !!tokens.access_token,
-      hasRefreshToken: !!tokens.refresh_token,
+      hasAccessToken: !!tokens.accessToken,
+      hasRefreshToken: !!tokens.refreshToken,
+      hasAccess_token: !!tokens.access_token,
+      hasRefresh_token: !!tokens.refresh_token,
       usingGoogleCalendarAPI: true, // Clear indication of current approach
     });
   }
@@ -112,18 +125,41 @@ export class GoogleOAuthService {
    * Get stored tokens for a specific tenant-email combination
    */
   async getStoredTokens(tenantId: string, providerEmail?: string) {
+    console.log(`🔍 DEBUG - getStoredTokens called with:`, {
+      tenantId,
+      providerEmail,
+      totalStoredKeys: this.tenantTokens.size,
+      allKeys: Array.from(this.tenantTokens.keys()),
+    });
+
     if (providerEmail) {
       const storageKey = this.getStorageKey(tenantId, providerEmail);
-      return this.tenantTokens.get(storageKey);
+      const result = this.tenantTokens.get(storageKey);
+      
+      console.log(`🔍 DEBUG - Looking for specific provider:`, {
+        storageKey,
+        found: !!result,
+        resultKeys: result ? Object.keys(result) : null,
+        resultTokensKeys: result?.tokens ? Object.keys(result.tokens) : null,
+      });
+      
+      return result;
     }
     
     // If no specific email provided, return first match for tenant
     for (const [key, data] of this.tenantTokens.entries()) {
       if (data.tenantId === tenantId) {
+        console.log(`🔍 DEBUG - Found general tenant match:`, {
+          key,
+          tenantId: data.tenantId,
+          userEmail: data.userEmail,
+          tokensKeys: data.tokens ? Object.keys(data.tokens) : null,
+        });
         return data;
       }
     }
     
+    console.log(`❌ DEBUG - No tokens found for tenant: ${tenantId}`);
     return null;
   }
 
@@ -358,6 +394,16 @@ export class GoogleOAuthService {
 
   // TODO: Implement these methods with your database
   private async storeGoogleTokens(tenantId: string, tokens: any): Promise<void> {
+    console.log(`🔍 DEBUG - storeGoogleTokens called with:`, {
+      tenantId,
+      email: tokens.email,
+      hasAccessToken: !!tokens.accessToken,
+      hasRefreshToken: !!tokens.refreshToken,
+      hasAccess_token: !!tokens.access_token,
+      hasRefresh_token: !!tokens.refresh_token,
+      tokensKeys: Object.keys(tokens),
+    });
+
     // Store using our new token storage system
     await this.storeTokensForTenant(tenantId, tokens, tokens.email);
     console.log(`✅ Stored Google tokens for tenant: ${tenantId}`);

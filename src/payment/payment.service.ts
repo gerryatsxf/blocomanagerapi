@@ -96,7 +96,21 @@ export class PaymentService {
         }
 
         // Get stored OAuth tokens for the provider
-        const providerTokens = this.googleOAuthService.getStoredTokens(tenant, providerEmail);
+        console.log(`🔍 DEBUG Payment - Looking for tokens:`, {
+          tenant,
+          providerEmail,
+        });
+        
+        const providerTokens = await this.googleOAuthService.getStoredTokens(tenant, providerEmail);
+        
+        console.log(`🔍 DEBUG Payment - Retrieved tokens:`, {
+          found: !!providerTokens,
+          tokensKeys: providerTokens ? Object.keys(providerTokens) : null,
+          tokenSubKeys: providerTokens?.tokens ? Object.keys(providerTokens.tokens) : null,
+          hasAccessToken: providerTokens?.tokens?.accessToken ? 'yes' : 'no',
+          hasAccess_token: providerTokens?.tokens?.access_token ? 'yes' : 'no',
+        });
+        
         if (!providerTokens) {
           console.error(`No OAuth tokens found for provider: ${providerEmail} in tenant: ${tenant}`);
           // Don't fail the payment, just log the error and continue
@@ -117,8 +131,12 @@ export class PaymentService {
             const eventStartTime = new Date(booking.meetingStartTimestamp);
             const eventEndTime = new Date(booking.meetingEndTimestamp);
 
+            console.log(`🔍 DEBUG Payment - Calling createEvent with tokens:`, {
+              tokensStructure: providerTokens.tokens ? Object.keys(providerTokens.tokens) : 'no tokens',
+            });
+
             const calendarEvent = await this.googleCalendarService.createEvent(
-              providerTokens,
+              providerTokens.tokens,
               {
                 title: eventTitle,
                 description: eventDescription,
