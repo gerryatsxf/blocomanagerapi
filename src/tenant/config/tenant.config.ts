@@ -4,6 +4,7 @@ export const TENANT_DOMAIN_MAPPING: Record<string, string> = {
   'aprendecoding.com': 'aprendecoding',
   'pedrorivero.com': 'pedrorivero',
   'blocomanager.com': 'blocomanager', // Default tenant
+  'api.blocomanager.com': 'blocomanager', // API subdomain
   'localhost': 'development', // For local development
 };
 
