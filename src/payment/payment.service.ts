@@ -13,6 +13,9 @@ import { SessionService } from '../session/session.service';
 import { NylasService } from '../nylas/nylas.service';
 import { CreateMeetingResultDto } from 'src/meeting/dto/create-meeting-result.dto';
 import { TenantService } from '../tenant/tenant.service';
+import { GoogleCalendarService } from '../tenant/google-calendar.service';
+import { GoogleOAuthService } from '../tenant/google-oauth.service';
+import { getTenantConfig } from '../tenant/config/tenant-email.config';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: '2022-11-15',
@@ -28,6 +31,8 @@ export class PaymentService {
     private readonly sessionService: SessionService,
     private readonly nylasService: NylasService,
     private readonly tenantService: TenantService,
+    private readonly googleCalendarService: GoogleCalendarService,
+    private readonly googleOAuthService: GoogleOAuthService,
   ) {}
 
   async paymentSuccess(request, stripeSignature, endpointSecret, response) {
@@ -67,57 +72,74 @@ export class PaymentService {
           return;
         }
         // console.log({ booking });
-        // Create vonage meeting
+        // Create google calendar event
         const customerEmail = stripeSessionCompleted.customer_details.email;
         const customerName = stripeSessionCompleted.customer_details.name;
 
-        // Create vonage meeting with timestamp and invitee parameters
-        const videoMeeting = await this.meetingService.createMeetingWithParams(
-          booking.meetingStartTimestamp,
-          customerName
-        );
+        // Note: Replaced old Make webhook system with direct Google Calendar API integration
+        // const videoMeeting = await this.meetingService.createMeetingWithParams(
+        //   booking.meetingStartTimestamp,
+        //   customerName
+        // );
 
         // Get tenant from session for customized content
         const tenant = sessionInfo.tenant || 'blocomanager';
         const tenantConfig = this.tenantService.getTenantConfig(tenant);
         
-        // Update existing calendar event using videoMeeting.event_id with tenant-specific content
-        const eventTitle = this.getTenantEventTitle(tenant, customerName);
-        const eventDescription = this.getTenantEventDescription(
-          tenant,
-          customerName,
-          customerEmail,
-          '', // hostMeetingLink - keeping empty as in original
-        );
+        // Get first authorized provider for the tenant (the main provider who will be the organizer)
+        const tenantEmailConfig = getTenantConfig(tenant);
+        const providerEmail = tenantEmailConfig?.authorizedProviders?.[0];
+        if (!providerEmail) {
+          console.error(`No authorized providers found for tenant: ${tenant}`);
+          response.sendStatus(400).send(`No providers configured for tenant`);
+          return;
+        }
 
+        // Get stored OAuth tokens for the provider
+        const providerTokens = this.googleOAuthService.getStoredTokens(tenant, providerEmail);
+        if (!providerTokens) {
+          console.error(`No OAuth tokens found for provider: ${providerEmail} in tenant: ${tenant}`);
+          // Don't fail the payment, just log the error and continue
+          console.log('Skipping calendar event creation due to missing OAuth tokens');
+        } else {
+          // Prepare event details
+          const eventTitle = this.getTenantEventTitle(tenant, customerName);
+          const eventDescription = this.getTenantEventDescription(
+            tenant,
+            customerName,
+            customerEmail,
+            '', // hostMeetingLink - keeping empty as in original
+          );
 
-        console.log('Updating event with event_id:', videoMeeting);
-        const eventId = videoMeeting.data.event_id;
+          // Create event directly in provider's Google Calendar
+          console.log(`Creating calendar event for tenant: ${tenant}, provider: ${providerEmail}`);
+          try {
+            const eventStartTime = new Date(booking.meetingStartTimestamp);
+            const eventEndTime = new Date(booking.meetingEndTimestamp);
 
-        await this.nylasService.updateEvent(eventId, {
-          title: eventTitle,
-          description: eventDescription,
-          startTime: booking.meetingStartTimestamp,
-          endTime: booking.meetingEndTimestamp,
-          participants: [
-            {
-              name: customerName,
-              email: customerEmail,
-            },
-          ],
-          busy: true,
-          metadata: { event_type: booking.type },
-          notifications: [
-            {
-              type: 'email',
-              minutesBeforeEvent: 600,
-              subject: this.getTenantNotificationSubject(tenant),
-              body: this.getTenantNotificationBody(tenant, customerName),
-            },
-          ],
-          notifyParticipants: true,
-        });
-        console.log('Event updated successfully with event_id:', eventId);
+            const calendarEvent = await this.googleCalendarService.createEvent(
+              providerTokens,
+              {
+                title: eventTitle,
+                description: eventDescription,
+                startTime: eventStartTime,
+                endTime: eventEndTime,
+                attendees: [
+                  {
+                    email: customerEmail,
+                    displayName: customerName,
+                  },
+                ],
+                timezone: 'America/Mexico_City', // You can make this configurable per tenant
+              }
+            );
+
+            console.log('Calendar event created successfully:', calendarEvent.id);
+          } catch (error) {
+            console.error('Error creating calendar event:', error);
+            // Don't fail the payment, just log the error
+          }
+        }
 
         // Update booking and session status
         await this.bookingService.updateBookingStatus(booking.id, 'paid');
