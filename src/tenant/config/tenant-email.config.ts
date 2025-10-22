@@ -19,7 +19,6 @@ export const TENANT_CONFIG_MAP: Record<string, TenantConfig> = {
     adminEmail: 'blocomanager@gmail.com',
     authorizedProviders: [
       'blocomanager@gmail.com',
-      'aprendecoding.asesorias@gmail.com',
       'pedrorivero@gmail.com',
       // Add more provider emails as needed
     ],
