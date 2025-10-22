@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { google } from 'googleapis';
 import { ConfigService } from '@nestjs/config';
+import { getTenantConfig, isEmailAuthorizedForTenant } from './config/tenant-email.config';
 
 @Injectable()
 export class GoogleOAuthService {
@@ -28,6 +29,105 @@ export class GoogleOAuthService {
     'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/userinfo.email',
   ];
+
+  // TODO: Implement proper database storage for tenant OAuth tokens
+  // For now, using in-memory storage (this should be replaced with database storage)
+  private tenantTokens = new Map<string, {
+    tokens: any;
+    grantId?: string;
+    userEmail: string;
+    connectedAt: Date;
+  }>();
+
+  /**
+   * Store OAuth tokens for a tenant
+   */
+  async storeTokensForTenant(tenantId: string, tokens: any, userEmail: string, grantId?: string) {
+    this.tenantTokens.set(tenantId, {
+      tokens,
+      grantId,
+      userEmail,
+      connectedAt: new Date(),
+    });
+    
+    console.log(`🔐 Stored tokens for tenant ${tenantId}:`, {
+      userEmail,
+      grantId: grantId || 'Not provided',
+      hasAccessToken: !!tokens.access_token,
+      hasRefreshToken: !!tokens.refresh_token,
+    });
+  }
+
+  /**
+   * Get stored grant ID for a tenant
+   */
+  async getStoredGrantId(tenantId: string): Promise<string | null> {
+    const tenantData = this.tenantTokens.get(tenantId);
+    
+    // If we have stored tokens, return the main grant ID for now
+    // TODO: In production, each tenant should have their own grant ID
+    if (tenantData) {
+      const mainGrantId = this.configService.get<string>('NYLAS_MAIN_ACCOUNT_GRANT_ID');
+      console.log(`🔑 Using main grant ID for tenant ${tenantId}: ${mainGrantId}`);
+      return mainGrantId;
+    }
+    
+    return null;
+  }
+
+  /**
+   * Get stored tokens for a tenant
+   */
+  async getStoredTokens(tenantId: string) {
+    return this.tenantTokens.get(tenantId);
+  }
+
+  /**
+   * Check if a tenant is authenticated with the correct email
+   */
+  async isTenantAuthenticated(tenantId: string): Promise<{
+    isAuthenticated: boolean;
+    email?: string;
+    message: string;
+  }> {
+    try {
+      const tenantConfig = getTenantConfig(tenantId);
+      if (!tenantConfig) {
+        return {
+          isAuthenticated: false,
+          message: `Tenant '${tenantId}' not found in configuration`,
+        };
+      }
+
+      const storedTokens = await this.getStoredTokens(tenantId);
+      if (!storedTokens) {
+        return {
+          isAuthenticated: false,
+          message: `Tenant '${tenantId}' has not authenticated yet. Expected email: ${tenantConfig.adminEmail}`,
+        };
+      }
+
+      // Verify the stored email matches the expected email for this tenant
+      if (!isEmailAuthorizedForTenant(tenantId, storedTokens.userEmail)) {
+        return {
+          isAuthenticated: false,
+          email: storedTokens.userEmail,
+          message: `Email mismatch for tenant '${tenantId}'. Expected: ${tenantConfig.adminEmail}, Found: ${storedTokens.userEmail}`,
+        };
+      }
+
+      return {
+        isAuthenticated: true,
+        email: storedTokens.userEmail,
+        message: `Tenant '${tenantId}' is authenticated with ${storedTokens.userEmail}`,
+      };
+    } catch (error) {
+      return {
+        isAuthenticated: false,
+        message: `Error checking authentication for tenant '${tenantId}': ${error.message}`,
+      };
+    }
+  }
 
   /**
    * Generate Google OAuth authorization URL
@@ -58,17 +158,33 @@ export class GoogleOAuthService {
       // Get user info
       const oauth2 = google.oauth2({ version: 'v2', auth: this.oauth2Client });
       const userInfo = await oauth2.userinfo.get();
+      
+      const userEmail = userInfo.data.email;
+
+      // 🔐 VALIDATION: Check if the authenticated email is authorized for this tenant
+      if (!isEmailAuthorizedForTenant(tenantId, userEmail)) {
+        const tenantConfig = getTenantConfig(tenantId);
+        const expectedEmail = tenantConfig?.adminEmail || 'unknown';
+        
+        throw new Error(
+          `Unauthorized email for tenant '${tenantId}'. ` +
+          `Expected: ${expectedEmail}, but got: ${userEmail}. ` +
+          `Please authenticate with the correct admin email for this tenant.`
+        );
+      }
+
+      console.log(`✅ Email validation passed for tenant ${tenantId}: ${userEmail}`);
 
       // Store tokens securely (you'll need to implement this)
       await this.storeGoogleTokens(tenantId, {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
         expiryDate: tokens.expiry_date,
-        email: userInfo.data.email,
+        email: userEmail,
       });
 
       return {
-        email: userInfo.data.email,
+        email: userEmail,
         connectedAt: new Date(),
       };
     } catch (error) {
@@ -151,22 +267,31 @@ export class GoogleOAuthService {
 
   // TODO: Implement these methods with your database
   private async storeGoogleTokens(tenantId: string, tokens: any): Promise<void> {
-    // Store encrypted tokens in database
-    // Implementation depends on your database schema
-    console.log(`Storing Google tokens for tenant: ${tenantId}`);
+    // Store using our new token storage system
+    await this.storeTokensForTenant(tenantId, tokens, tokens.email);
+    console.log(`✅ Stored Google tokens for tenant: ${tenantId}`);
   }
 
   private async getStoredGoogleTokens(tenantId: string): Promise<any> {
-    // Retrieve and decrypt tokens from database
-    // Implementation depends on your database schema
-    console.log(`Getting stored Google tokens for tenant: ${tenantId}`);
-    return null;
+    // Retrieve using our new token storage system
+    const storedData = await this.getStoredTokens(tenantId);
+    if (!storedData) {
+      console.log(`❌ No stored Google tokens found for tenant: ${tenantId}`);
+      return null;
+    }
+    
+    console.log(`✅ Retrieved Google tokens for tenant: ${tenantId}`);
+    return {
+      ...storedData.tokens,
+      tenantId,
+      email: storedData.userEmail,
+    };
   }
 
   private async removeStoredGoogleTokens(tenantId: string): Promise<void> {
-    // Remove tokens from database
-    // Implementation depends on your database schema
-    console.log(`Removing Google tokens for tenant: ${tenantId}`);
+    // Remove using our new token storage system
+    this.tenantTokens.delete(tenantId);
+    console.log(`🗑️ Removed Google tokens for tenant: ${tenantId}`);
   }
 
   private async validateTokens(storedAuth: any): Promise<boolean> {

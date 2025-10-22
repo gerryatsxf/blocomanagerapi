@@ -338,6 +338,165 @@ export class NylasService {
     }
   }
 
+  // ============================================================================
+  // MULTI-TENANT METHODS (For tenant-specific grants)
+  // ============================================================================
+
+  /**
+   * Create a calendar event using a specific grant ID (for tenant-specific operations)
+   */
+  async createEventWithGrant(grantId: string, eventData: {
+    title: string;
+    description?: string;
+    startTime: number;
+    endTime: number;
+    participants?: Array<{ name?: string; email: string }>;
+    conferencing?: any;
+    calendarId?: string;
+    busy?: boolean;
+    metadata?: Record<string, any>;
+    notifyParticipants?: boolean;
+  }) {
+    try {
+      this.logger.log(`Creating event for grant ${grantId}: ${eventData.title}`);
+
+      // Get primary calendar if no calendarId provided
+      let calendarId = eventData.calendarId;
+      if (!calendarId) {
+        const calendars = await this.getCalendarsWithGrant(grantId);
+        const primaryCalendar = calendars.find((calendar: any) => calendar.isPrimary);
+        calendarId = primaryCalendar?.id;
+      }
+
+      if (!calendarId) {
+        throw new Error('No calendar ID provided and no primary calendar found');
+      }
+
+      const event = await this.nylas.events.create({
+        identifier: grantId,
+        requestBody: {
+          title: eventData.title,
+          description: eventData.description,
+          when: {
+            startTime: eventData.startTime,
+            endTime: eventData.endTime,
+          },
+          participants: eventData.participants?.map(p => ({
+            name: p.name,
+            email: p.email,
+            status: 'noreply'
+          })),
+          conferencing: eventData.conferencing,
+          calendarId,
+          busy: eventData.busy ?? true,
+          metadata: eventData.metadata,
+        },
+        queryParams: {
+          calendarId,
+          notifyParticipants: eventData.notifyParticipants ?? false,
+        },
+      });
+
+      this.logger.log(`Event created successfully: ${event.data.id}`);
+      return event.data;
+    } catch (error) {
+      this.logger.error(`Error creating event for grant ${grantId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get calendars for a specific grant ID
+   */
+  async getCalendarsWithGrant(grantId: string) {
+    try {
+      const response = await this.nylas.calendars.list({
+        identifier: grantId,
+      });
+      
+      return response.data;
+    } catch (error) {
+      this.logger.error(`Error fetching calendars for grant ${grantId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get events for a specific grant and date range
+   */
+  async getEventsWithGrant(
+    grantId: string, 
+    options: {
+      calendarId?: string;
+      startTime?: number;
+      endTime?: number;
+      limit?: number;
+    } = {}
+  ) {
+    try {
+      const response = await this.nylas.events.list({
+        identifier: grantId,
+        queryParams: {
+          calendarId: options.calendarId,
+          start: options.startTime?.toString(),
+          end: options.endTime?.toString(),
+          limit: options.limit || 50,
+        },
+      });
+      
+      return response.data;
+    } catch (error) {
+      this.logger.error(`Error fetching events for grant ${grantId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get free/busy information for a specific grant
+   */
+  async getFreeBusyWithGrant(
+    grantId: string,
+    startTime: number,
+    endTime: number,
+    emails: string[]
+  ) {
+    try {
+      const response = await this.nylas.calendars.getFreeBusy({
+        identifier: grantId,
+        requestBody: {
+          startTime,
+          endTime,
+          emails,
+        },
+      });
+      
+      return response.data;
+    } catch (error) {
+      this.logger.error(`Error fetching free/busy for grant ${grantId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Test connection for a grant ID (useful for tenant setup)
+   */
+  async testGrantConnection(grantId: string) {
+    try {
+      const calendars = await this.getCalendarsWithGrant(grantId);
+      return {
+        connected: true,
+        calendarsCount: calendars.length,
+        primaryCalendar: calendars.find((cal: any) => cal.isPrimary)?.name || 'None found'
+      };
+    } catch (error) {
+      this.logger.error(`Grant ${grantId} connection test failed:`, error);
+      return {
+        connected: false,
+        error: error.message
+      };
+    }
+  }
+
   /**
    * Utility method to convert kebab case string
    */
