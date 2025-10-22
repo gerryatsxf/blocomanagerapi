@@ -3,8 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nes
 import { Request, Response } from 'express';
 import { TenantGuard } from './guards/tenant.guard';
 import { GoogleOAuthService } from './google-oauth.service';
-import { NylasService } from '../nylas/nylas.service';
-import { CalendarService } from '../calendar/calendar.service';
+import { GoogleCalendarService } from './google-calendar.service';
 import { ScheduleEventParamsDto } from '../calendar/dto/schedule-event-params.dto';
 import { getTenantConfig, getAuthorizedProviders } from './config/tenant-email.config';
 import { Tenant } from './decorators/tenant.decorator';
@@ -16,8 +15,7 @@ export class GoogleOAuthController {
 
   constructor(
     private readonly googleOAuthService: GoogleOAuthService,
-    private readonly nylasService: NylasService,
-    private readonly calendarService: CalendarService,
+    private readonly googleCalendarService: GoogleCalendarService,
   ) {}
 
   /**
@@ -168,7 +166,7 @@ export class GoogleOAuthController {
   }
 
   // ============================================================================
-  // CALENDAR ENDPOINTS
+  // CALENDAR ENDPOINTS - Using Google Calendar API directly (not Nylas)
   // ============================================================================
 
   /**
@@ -186,19 +184,23 @@ export class GoogleOAuthController {
         throw new HttpException(authCheck.message, HttpStatus.UNAUTHORIZED);
       }
 
-      const grantId = await this.googleOAuthService.getStoredGrantId(tenantId);
+      // Get provider tokens
+      const providerTokens = await this.googleOAuthService.getStoredTokens(tenantId, authCheck.email);
       
-      if (!grantId) {
-        throw new HttpException('No Google account connected for this tenant', HttpStatus.UNAUTHORIZED);
+      if (!providerTokens) {
+        throw new HttpException('No Google tokens found for this provider', HttpStatus.UNAUTHORIZED);
       }
 
-      const calendars = await this.nylasService.getCalendarsWithGrant(grantId);
+      const calendarInfo = await this.googleCalendarService.testCalendarAccess(providerTokens.tokens);
       
       return {
         success: true,
         tenant: tenantId,
         authenticatedEmail: authCheck.email,
-        data: calendars,
+        data: {
+          calendar: calendarInfo,
+          message: 'Using Google Calendar API directly',
+        },
       };
     } catch (error) {
       this.logger.error(`Error fetching calendars for tenant ${tenantId}:`, error);
@@ -231,39 +233,49 @@ export class GoogleOAuthController {
         );
       }
 
-      const grantId = await this.googleOAuthService.getStoredGrantId(tenantId);
+      // Get provider tokens - we need to specify which provider's calendar to use
+      // For now, let's use the first authenticated provider (could be made configurable)
+      const firstProvider = authCheck.authenticatedProviders?.[0] || authCheck.email;
+      const providerTokens = await this.googleOAuthService.getStoredTokens(tenantId, firstProvider);
       
-      if (!grantId) {
-        throw new HttpException('No Google account connected for this tenant', HttpStatus.UNAUTHORIZED);
+      if (!providerTokens) {
+        throw new HttpException('No Google tokens found for the provider', HttpStatus.UNAUTHORIZED);
       }
 
-      const event = await this.nylasService.createEventWithGrant(grantId, {
+      this.logger.log(`📅 Creating event in ${firstProvider}'s calendar for tenant ${tenantId}`);
+
+      const event = await this.googleCalendarService.createEvent(providerTokens.tokens, {
         title: eventData.title,
         description: eventData.description,
-        startTime: eventData.eventStartTime,
-        endTime: eventData.eventEndTime,
-        participants: [
+        startTime: new Date(eventData.eventStartTime),
+        endTime: new Date(eventData.eventEndTime),
+        attendees: [
           {
-            name: eventData.customerName,
             email: eventData.customerEmail,
+            displayName: eventData.customerName,
+          },
+          // Also add the provider as attendee so they see it in their calendar
+          {
+            email: firstProvider,
+            displayName: 'Host', // Provider will be the organizer
           },
         ],
-        busy: true,
-        metadata: { 
-          event_type: eventData.meetingType,
-          tenant_id: tenantId,
-          host_meeting_link: eventData.hostMeetingLink,
-          guest_meeting_link: eventData.guestMeetingLink,
-        },
-        notifyParticipants: true,
+        meetingLink: eventData.hostMeetingLink || eventData.guestMeetingLink,
+        timezone: 'America/Mexico_City',
       });
 
       return {
         success: true,
-        message: 'Event created successfully',
+        message: 'Event created successfully in provider\'s Google Calendar',
         tenant: tenantId,
-        authenticatedEmail: authCheck.email,
-        data: event,
+        provider: firstProvider,
+        data: {
+          eventId: event.id,
+          eventLink: event.htmlLink,
+          meetingLink: event.meetLink,
+          organizer: event.organizer,
+          attendees: event.attendees,
+        },
       };
     } catch (error) {
       this.logger.error(`Error creating event for tenant ${tenantId}:`, error);
@@ -283,22 +295,37 @@ export class GoogleOAuthController {
   @ApiResponse({ status: 200, description: 'Connection test completed' })
   async testConnection(@Tenant() tenantId: string) {
     try {
-      // TODO: Get the actual grant ID from stored OAuth tokens for this tenant
-      const grantId = await this.googleOAuthService.getStoredGrantId(tenantId);
+      // Check tenant authentication status
+      const authCheck = await this.googleOAuthService.isTenantAuthenticated(tenantId);
       
-      if (!grantId) {
+      if (!authCheck.isAuthenticated) {
         return {
           success: false,
-          message: 'No Google account connected for this tenant',
+          message: authCheck.message,
           connected: false,
         };
       }
 
-      const connectionTest = await this.nylasService.testGrantConnection(grantId);
+      // Test all authenticated providers
+      const results = [];
+      for (const providerEmail of authCheck.authenticatedProviders || []) {
+        const providerTokens = await this.googleOAuthService.getStoredTokens(tenantId, providerEmail);
+        if (providerTokens) {
+          const connectionTest = await this.googleCalendarService.testCalendarAccess(providerTokens.tokens);
+          results.push({
+            provider: providerEmail,
+            ...connectionTest,
+          });
+        }
+      }
       
       return {
         success: true,
-        data: connectionTest,
+        data: {
+          tenant: tenantId,
+          providerTests: results,
+          totalProviders: results.length,
+        },
       };
     } catch (error) {
       this.logger.error(`Error testing connection for tenant ${tenantId}:`, error);

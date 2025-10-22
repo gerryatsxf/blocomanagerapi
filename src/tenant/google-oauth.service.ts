@@ -35,9 +35,10 @@ export class GoogleOAuthService {
   // Key format: "tenantId:email" -> tokens
   private tenantTokens = new Map<string, {
     tokens: any;
-    grantId?: string;
+    grantId?: string; // Kept for backwards compatibility
     userEmail: string;
     tenantId: string;
+    // providerGrantId removed - not needed for Google Calendar API direct usage
     connectedAt: Date;
   }>();
 
@@ -59,22 +60,29 @@ export class GoogleOAuthService {
       grantId,
       userEmail,
       tenantId,
+      // providerGrantId removed - not needed for Google Calendar API
       connectedAt: new Date(),
     });
     
     console.log(`🔐 Stored tokens for tenant ${tenantId} with provider ${userEmail}:`, {
       storageKey,
-      grantId: grantId || 'Not provided',
       hasAccessToken: !!tokens.access_token,
       hasRefreshToken: !!tokens.refresh_token,
+      usingGoogleCalendarAPI: true, // Clear indication of current approach
     });
   }
 
   /**
    * Get stored grant ID for a tenant (uses first authenticated provider for now)
-   * TODO: In the future, this should specify which provider's grant to use
+   * NOTE: This method is kept for potential future Nylas integration but currently unused
+   * We're now using Google Calendar API directly instead of Nylas
    */
   async getStoredGrantId(tenantId: string, providerEmail?: string): Promise<string | null> {
+    // DEPRECATED: Using Google Calendar API directly instead of Nylas grants
+    console.log(`⚠️ getStoredGrantId called but we're using Google Calendar API directly now`);
+    return null;
+    
+    /* KEPT FOR FUTURE NYLAS INTEGRATION:
     if (providerEmail) {
       // Get grant for specific provider
       const storageKey = this.getStorageKey(tenantId, providerEmail);
@@ -97,6 +105,7 @@ export class GoogleOAuthService {
     }
     
     return null;
+    */
   }
 
   /**
@@ -238,17 +247,22 @@ export class GoogleOAuthService {
 
       console.log(`✅ Email validation passed for tenant ${tenantId}: ${userEmail}`);
 
+      // NOTE: No longer using Nylas grants - storing tokens for direct Google Calendar API usage
+      console.log(`🔗 Storing Google OAuth tokens for provider ${userEmail} in tenant ${tenantId}`);
+
       // Store tokens securely (you'll need to implement this)
       await this.storeGoogleTokens(tenantId, {
         accessToken: tokens.access_token,
         refreshToken: tokens.refresh_token,
         expiryDate: tokens.expiry_date,
         email: userEmail,
+        // providerGrantId removed - not needed for Google Calendar API
       });
 
       return {
         email: userEmail,
         connectedAt: new Date(),
+        // grantId removed - using Google Calendar API directly
       };
     } catch (error) {
       throw new Error(`Failed to handle OAuth callback: ${error.message}`);
