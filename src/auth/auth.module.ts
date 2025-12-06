@@ -10,6 +10,9 @@ import { EncryptionService } from '../encryption/encryption.service';
 import { JWT_EXPIRES_IN, JWT_SECRET } from './auth.constants';
 import { SessionModule } from '../session/session.module';
 import { TenantModule } from '../tenant/tenant.module';
+import { UsersModule } from '../users/users.module';
+import { PasswordResetModule } from '../password-reset/password-reset.module';
+import { NotificationModule } from '../notification/notification.module';
 
 const jwtFactory = (configService: ConfigService) => ({
   secret: configService.get<string>(JWT_SECRET),
@@ -31,6 +34,9 @@ const options = {
     JwtModule.registerAsync(options),
     SessionModule,
     TenantModule,
+    UsersModule,
+    PasswordResetModule,
+    NotificationModule,
   ],
   providers: [AuthService, JwtStrategy, EncryptionService, ConfigService],
   exports: [AuthService],

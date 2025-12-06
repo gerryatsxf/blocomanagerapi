@@ -1,9 +1,12 @@
+import { SessionStatus, TenantVisitorStatus } from '../entities/session.interface';
+
 export class CreateSessionRequestDto {
   timestamp: number;
   duration: number; // milliseconds
   timezone?: string;
-  status = 'lead';
+  status?: SessionStatus;
+  tenantVisitorStatus?: TenantVisitorStatus;
   leadId?: string
-  leadStage = 'st_greet'; // Default to 's1' for lead stage
+  leadStage?: string;
   tenant: string; // Required tenant identifier
 }

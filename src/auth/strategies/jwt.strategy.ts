@@ -1,9 +1,9 @@
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PassportStrategy } from '@nestjs/passport';
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SessionService } from '../../session/session.service';
-import { ISession } from '../../session/entities/session.interface';
+import { ISession, SessionStatus } from '../../session/entities/session.interface';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -20,9 +20,35 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
 
   async validate(payload: any): Promise<ISession> {
     const session = await this.sessionService.findOne(payload.id);
-    if (session) {
+    
+    if (!session) {
+      throw new UnauthorizedException('Session not found');
+    }
+
+    // Check if session is revoked
+    if (session.status === SessionStatus.REVOKED) {
+      throw new UnauthorizedException('Session has been revoked');
+    }
+
+    // Check if session is expired by status
+    if (session.status === SessionStatus.EXPIRED) {
+      throw new UnauthorizedException('Session has expired');
+    }
+
+    // Check if session is expired by time
+    const currentTime = Date.now();
+    const expirationTime = session.timestamp + session.duration;
+    if (currentTime > expirationTime) {
+      // Mark session as expired in database
+      await this.sessionService.update(session._id, { status: SessionStatus.EXPIRED });
+      throw new UnauthorizedException('Session has expired');
+    }
+
+    // Only return active sessions
+    if (session.status === SessionStatus.ACTIVE) {
       return session;
     }
-    return null;
+
+    throw new UnauthorizedException('Invalid session status');
   }
 }

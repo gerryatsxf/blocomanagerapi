@@ -3,7 +3,7 @@ import { CreateSessionRequestDto } from './dto/create-session-request.dto';
 import { UpdateSessionRequestDto } from './dto/update-session-request.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { ISession } from './entities/session.interface';
+import { ISession, SessionStatus, TenantVisitorStatus } from './entities/session.interface';
 import { TenantService } from '../tenant/tenant.service';
 
 @Injectable()
@@ -17,6 +17,7 @@ export class SessionService {
     createSessionDto.timestamp = Date.now();
     createSessionDto.duration = 1000 * 60 * 60; // 1 hour in milliseconds
     createSessionDto.tenant = tenant || 'blocomanager'; // Default tenant if not provided
+    createSessionDto.status = SessionStatus.ACTIVE; // Set status to active
 
     const newSession = new this.sessionModel(createSessionDto);
     await newSession.save();
@@ -31,6 +32,8 @@ export class SessionService {
     createSessionDto.leadId = leadId;
     createSessionDto.leadStage = 'st_greet'; // Default to 's1' for lead stage
     createSessionDto.tenant = tenant || 'blocomanager'; // Default tenant if not provided
+    createSessionDto.status = SessionStatus.ACTIVE; // Set status to active
+    createSessionDto.tenantVisitorStatus = TenantVisitorStatus.LEAD; // Set tenant visitor status to lead
     console.log({ createSessionDto });
     const newSession = new this.sessionModel(createSessionDto);
     await newSession.save();
@@ -58,6 +61,14 @@ export class SessionService {
 
   async findByClientReferenceId(clientReferenceId: string) {
     return this.sessionModel.findOne({ clientReferenceId });
+  }
+
+  async revokeSession(id: string): Promise<ISession> {
+    return this.sessionModel.findByIdAndUpdate(
+      id,
+      { status: SessionStatus.REVOKED },
+      { new: true }
+    );
   }
 
   // remove(id: number) {

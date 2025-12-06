@@ -8,7 +8,7 @@ import { Model } from 'mongoose';
 import { IBooking } from './entities/booking.interface';
 import CreateBookingResponseDto from './dto/create-booking.response';
 import CreateBookingRequestDto from './dto/create-booking-request.dto';
-import { ISession } from '../session/entities/session.interface';
+import { ISession, TenantVisitorStatus } from '../session/entities/session.interface';
 import { SessionService } from '../session/session.service';
 import { UpdateSessionRequestDto } from '../session/dto/update-session-request.dto';
 import { EncryptionService } from '../encryption/encryption.service';
@@ -60,7 +60,7 @@ export class BookingService {
     clientReferenceId: string,
   ): Promise<void> {
     const updateSession = new UpdateSessionRequestDto();
-    updateSession.status = 'processing';
+    updateSession.tenantVisitorStatus = TenantVisitorStatus.PROCESSING;
     updateSession.processingTimestamp = new Date().getTime();
     updateSession.clientReferenceId = clientReferenceId;
     await this.sessionService.update(sessionInfo.id, updateSession);
@@ -117,14 +117,14 @@ export class BookingService {
           .findOne(booking.sessionId)
           .then(async (session) => {
             const updateSession = new UpdateSessionRequestDto();
-            updateSession.status = 'processed';
+            updateSession.tenantVisitorStatus = TenantVisitorStatus.PROCESSED;
             await this.sessionService.update(session.id, updateSession);
           });
       }
     }
 
     // Check session status
-    if (sessionInfo.status !== 'lead') {
+    if (sessionInfo.tenantVisitorStatus !== TenantVisitorStatus.LEAD) {
       // REJECT if customer/session is not a lead
       throw new BadRequestException('Customer is no longer a lead');
     }

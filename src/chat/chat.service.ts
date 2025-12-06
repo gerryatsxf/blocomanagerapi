@@ -8,7 +8,7 @@ import { SessionService } from 'src/session/session.service';
 import { EncryptionService } from 'src/encryption/encryption.service';
 import { ConversationReply } from './dto/conversation-reply.dto';
 import { TelegramMessageDto } from './dto/telegram-message.dto';
-import { ISession } from 'src/session/entities/session.interface';
+import { ISession, TenantVisitorStatus } from 'src/session/entities/session.interface';
 import dialogsConfig from './dialogs.config'
 import { lastValueFrom } from 'rxjs';
 import { AuthService } from 'src/auth/auth.service';
@@ -64,7 +64,7 @@ export class ChatService {
     this.sessionService.findByLeadId(leadId)
       .then(async (session) => {
 
-        if (!session || session.status === 'processed') {
+        if (!session || session.tenantVisitorStatus === TenantVisitorStatus.PROCESSED) {
           // If no existing session or the session is from recurring lead, then create a new session
           if (session) {
             session = await this.authService.deleteToken(leadId);
@@ -82,7 +82,7 @@ export class ChatService {
             console.error('Error creating new session:', error);
             await this.sendMessage(this.getErrorReply(leadId));
           }
-        } else if (session && session.status === 'processing') {
+        } else if (session && session.tenantVisitorStatus === TenantVisitorStatus.PROCESSING) {
           // Fix: Use an async IIFE to allow await inside the .then() callback
           (async () => {
             console.log('Existing session found:', session );

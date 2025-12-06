@@ -14,7 +14,14 @@ export const SessionSchema = new mongoose.Schema({
   },
   status: {
     type: String,
+    required: true,
+    enum: ['active', 'revoked', 'expired'],
+    default: 'active',
+  },
+  tenantVisitorStatus: {
+    type: String,
     required: false,
+    enum: ['lead', 'processing', 'processed', 'authenticated'],
   },
   processingTimestamp: {
     type: Number,
@@ -31,6 +38,11 @@ export const SessionSchema = new mongoose.Schema({
   leadStage: {
     type: String,
     required: false,
+  },
+  userId: {
+    type: String,
+    required: false,
+    index: true, // Add index for efficient user-based queries
   },
   tenant: {
     type: String,
