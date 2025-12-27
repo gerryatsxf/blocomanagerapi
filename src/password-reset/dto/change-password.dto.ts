@@ -1,12 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsNotEmpty, IsString, MinLength, Matches } from 'class-validator';
 
-export class ResetPasswordDto {
+export class ChangePasswordDto {
   @ApiProperty({
     example: 'a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8s9t0u1v2w3x4y5z6a7b8c9d0e1f2',
-    description: 'Password reset token received via email. MUST be exactly 64 characters (hex string format). Token is valid for 1 hour and can only be used once. Expires after use or after 1 hour, whichever comes first.',
+    description: 'Password change verification token received via email. MUST be exactly 64 characters (hex string format). Token is valid for 1 hour and can only be used once.',
   })
-  @IsNotEmpty({ message: 'Reset token is required' })
+  @IsNotEmpty({ message: 'Verification token is required' })
   @IsString()
   token: string;
 

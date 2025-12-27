@@ -8,15 +8,8 @@ export class ResetPasswordResponseDto {
   success: boolean;
 
   @ApiProperty({
-    example: 'Password has been reset successfully',
-    description: 'Success message',
+    example: 'Your password has been reset successfully. Please log in with your new password.',
+    description: 'Success message instructing user to log in',
   })
   message: string;
-
-  @ApiProperty({
-    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
-    description: 'Optional: JWT access token for automatic login after reset',
-    required: false,
-  })
-  access_token?: string;
 }

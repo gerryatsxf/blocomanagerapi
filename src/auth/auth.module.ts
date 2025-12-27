@@ -13,6 +13,7 @@ import { TenantModule } from '../tenant/tenant.module';
 import { UsersModule } from '../users/users.module';
 import { PasswordResetModule } from '../password-reset/password-reset.module';
 import { NotificationModule } from '../notification/notification.module';
+import { EmailChangeModule } from '../email-change/email-change.module';
 
 const jwtFactory = (configService: ConfigService) => ({
   secret: configService.get<string>(JWT_SECRET),
@@ -37,6 +38,7 @@ const options = {
     UsersModule,
     PasswordResetModule,
     NotificationModule,
+    EmailChangeModule,
   ],
   providers: [AuthService, JwtStrategy, EncryptionService, ConfigService],
   exports: [AuthService],

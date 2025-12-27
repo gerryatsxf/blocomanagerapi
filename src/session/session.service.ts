@@ -71,6 +71,13 @@ export class SessionService {
     );
   }
 
+  async revokeAllUserSessions(userId: string): Promise<void> {
+    await this.sessionModel.updateMany(
+      { userId, status: SessionStatus.ACTIVE },
+      { status: SessionStatus.REVOKED }
+    );
+  }
+
   // remove(id: number) {
   //   return `This action removes a #${id} session`;
   // }

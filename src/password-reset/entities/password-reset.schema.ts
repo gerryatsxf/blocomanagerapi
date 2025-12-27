@@ -1,5 +1,10 @@
 import * as mongoose from 'mongoose';
 
+export enum PasswordResetType {
+  FORGOT_PASSWORD = 'forgot-password',
+  CHANGE_PASSWORD = 'change-password',
+}
+
 export const PasswordResetSchema = new mongoose.Schema({
   userId: {
     type: String,
@@ -11,6 +16,12 @@ export const PasswordResetSchema = new mongoose.Schema({
     required: true,
     index: true, // Index for fast token lookups
     unique: true, // Each token must be unique
+  },
+  type: {
+    type: String,
+    enum: Object.values(PasswordResetType),
+    required: true,
+    default: PasswordResetType.FORGOT_PASSWORD,
   },
   expiresAt: {
     type: Date,

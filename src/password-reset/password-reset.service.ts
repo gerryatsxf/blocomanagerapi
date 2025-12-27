@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { IPasswordReset } from './entities/password-reset.interface';
+import { PasswordResetType } from './entities/password-reset.schema';
 import { EncryptionService } from '../encryption/encryption.service';
 import * as crypto from 'crypto';
 
@@ -48,6 +49,42 @@ export class PasswordResetService {
     const passwordReset = new this.passwordResetModel({
       userId,
       token: hashedToken,
+      type: PasswordResetType.FORGOT_PASSWORD,
+      expiresAt,
+      used: false,
+      createdAt: new Date(),
+      ipAddress,
+      userAgent,
+    });
+
+    await passwordReset.save();
+
+    // Return the plain token (to be sent via email)
+    return plainToken;
+  }
+
+  /**
+   * Create a new change password request (for authenticated users)
+   */
+  async createChangePasswordToken(
+    userId: string,
+    ipAddress?: string,
+    userAgent?: string,
+  ): Promise<string> {
+    // Invalidate any existing change password tokens for this user
+    await this.invalidateUserTokens(userId, PasswordResetType.CHANGE_PASSWORD);
+
+    // Generate new token
+    const { plainToken, hashedToken } = await this.generateToken();
+
+    // Calculate expiration (1 hour from now)
+    const expiresAt = new Date(Date.now() + 3600000); // 1 hour
+
+    // Create password reset document
+    const passwordReset = new this.passwordResetModel({
+      userId,
+      token: hashedToken,
+      type: PasswordResetType.CHANGE_PASSWORD,
       expiresAt,
       used: false,
       createdAt: new Date(),
@@ -65,29 +102,25 @@ export class PasswordResetService {
    * Find password reset by token and validate it
    */
   async findValidToken(plainToken: string): Promise<IPasswordReset | null> {
-    // Hash the incoming token
-    const hashedToken = await this.encryptionService.hash(plainToken);
-
-    // Find the token
-    const passwordReset = await this.passwordResetModel.findOne({
-      token: hashedToken,
+    // Get all active (unused, unexpired) tokens
+    const activeTokens = await this.passwordResetModel.find({
+      used: false,
+      expiresAt: { $gt: new Date() },
     });
 
-    if (!passwordReset) {
-      return null;
+    // Compare plain token against each hashed token using bcrypt
+    for (const passwordReset of activeTokens) {
+      const isMatch = await this.encryptionService.compare(
+        plainToken,
+        passwordReset.token,
+      );
+
+      if (isMatch) {
+        return passwordReset;
+      }
     }
 
-    // Check if already used
-    if (passwordReset.used) {
-      return null;
-    }
-
-    // Check if expired
-    if (new Date() > passwordReset.expiresAt) {
-      return null;
-    }
-
-    return passwordReset;
+    return null;
   }
 
   /**
@@ -103,9 +136,13 @@ export class PasswordResetService {
   /**
    * Invalidate all tokens for a specific user
    */
-  async invalidateUserTokens(userId: string): Promise<void> {
+  async invalidateUserTokens(userId: string, type?: PasswordResetType): Promise<void> {
+    const filter: any = { userId, used: false };
+    if (type) {
+      filter.type = type;
+    }
     await this.passwordResetModel.updateMany(
-      { userId, used: false },
+      filter,
       { used: true, usedAt: new Date() },
     );
   }

@@ -15,6 +15,16 @@ import { ForgotPasswordDto } from '../password-reset/dto/forgot-password.dto';
 import { ForgotPasswordResponseDto } from '../password-reset/dto/forgot-password-response.dto';
 import { ResetPasswordDto } from '../password-reset/dto/reset-password.dto';
 import { ResetPasswordResponseDto } from '../password-reset/dto/reset-password-response.dto';
+import { ChangePasswordRequestResponseDto } from '../password-reset/dto/change-password-request-response.dto';
+import { ChangePasswordDto } from '../password-reset/dto/change-password.dto';
+import { ChangePasswordResponseDto } from '../password-reset/dto/change-password-response.dto';
+import { EmailChangeService } from '../email-change/email-change.service';
+import { ChangeEmailRequestResponseDto } from '../email-change/dto/change-email-request-response.dto';
+import { ChangeEmailDto } from '../email-change/dto/change-email.dto';
+import { ChangeEmailResponseDto } from '../email-change/dto/change-email-response.dto';
+import { ConfirmEmailChangeDto } from '../email-change/dto/confirm-email-change.dto';
+import { ConfirmEmailChangeResponseDto } from '../email-change/dto/confirm-email-change-response.dto';
+import { RefreshSessionResponseDto } from './dto/refresh-session-response.dto';
 
 @Injectable()
 export class AuthService {
@@ -26,6 +36,7 @@ export class AuthService {
     private encryptionService: EncryptionService,
     private passwordResetService: PasswordResetService,
     private notificationService: NotificationService,
+    private emailChangeService: EmailChangeService,
   ) {}
 
   /**
@@ -50,6 +61,7 @@ export class AuthService {
     const user = await this.usersService.findByEmail(loginDto.email);
     
     if (!user) {
+      console.log(`[AUTH] Login attempt FAILED | Email: ${loginDto.email} | Reason: User not found | Timestamp: ${new Date().toISOString()}`);
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -60,6 +72,7 @@ export class AuthService {
     );
 
     if (!isPasswordValid) {
+      console.log(`[AUTH] Login attempt FAILED | Email: ${loginDto.email} | Reason: Invalid password | Timestamp: ${new Date().toISOString()}`);
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -68,6 +81,8 @@ export class AuthService {
       userId: user._id.toString(),
       tenantVisitorStatus: TenantVisitorStatus.AUTHENTICATED,
     });
+
+    console.log(`[AUTH] Login attempt SUCCESS | Email: ${loginDto.email} | User ID: ${user._id} | Timestamp: ${new Date().toISOString()}`);
 
     // Generate new JWT token for the authenticated session
     return {
@@ -108,7 +123,7 @@ export class AuthService {
 
   /**
    * Authenticate an existing session by associating it with a user
-   * This converts an anonymous session into an authenticated session
+   * This converts a visitor/unauthenticated session into an authenticated session
    */
   async authenticateSession(sessionId: string, userId: string): Promise<any> {
     // Update the session with the userId
@@ -146,6 +161,39 @@ export class AuthService {
       access_token: this.jwtService.sign({
         id: newSession.id,
       }),
+    };
+  }
+
+  /**
+   * Refresh session - Extend session duration before expiration
+   * Allows users to stay logged in without interruption during active use
+   */
+  async refreshSession(session: ISession): Promise<RefreshSessionResponseDto> {
+    if (!session || !session._id) {
+      throw new UnauthorizedException('Invalid session');
+    }
+
+    // Check if session is already expired
+    const now = Date.now();
+    const expirationTime = session.timestamp + session.duration;
+    
+    if (now > expirationTime) {
+      throw new UnauthorizedException('Session has expired. Please login again.');
+    }
+
+    // Update session with new timestamp (extends duration by another full period)
+    const newTimestamp = Date.now();
+    const updatedSession = await this.sessionService.update(session._id, {
+      timestamp: newTimestamp,
+    });
+
+    // Calculate new expiration time
+    const newExpiresAt = newTimestamp + updatedSession.duration;
+
+    return {
+      success: true,
+      expiresAt: newExpiresAt,
+      message: 'Session refreshed successfully',
     };
   }
 
@@ -246,10 +294,121 @@ export class AuthService {
 
     console.log(`Password reset successful for user: ${user.email}`);
 
-    // Return success response
+    // Return success response without access token (user must login manually)
     return {
       success: true,
-      message: 'Password has been reset successfully',
+      message: 'Your password has been reset successfully. Please log in with your new password.',
+    };
+  }
+
+  /**
+   * Request password change (for authenticated users)
+   */
+  async changePasswordRequest(
+    request: Request,
+  ): Promise<ChangePasswordRequestResponseDto> {
+    // Get authenticated session
+    const session = (request as any).user;
+    
+    if (!session || !session.userId) {
+      throw new UnauthorizedException('You must be logged in to change your password');
+    }
+
+    // Find user
+    const user = await this.usersService.findById(session.userId);
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    try {
+      // Extract IP and user agent for audit trail
+      const ipAddress = request?.ip || request?.socket?.remoteAddress;
+      const userAgent = request?.get('user-agent');
+
+      // Create change password token
+      const changeToken = await this.passwordResetService.createChangePasswordToken(
+        user._id.toString(),
+        ipAddress,
+        userAgent,
+      );
+
+      // Send email with verification link
+      await this.notificationService.sendChangePasswordEmail(
+        user.email,
+        changeToken,
+        user.firstName,
+      );
+
+      console.log(`Password change verification email sent to: ${user.email}`);
+
+      return {
+        success: true,
+        message: 'A password change verification link has been sent to your email',
+      };
+    } catch (error) {
+      console.error('Error sending change password email:', error);
+      throw new BadRequestException('Failed to send verification email');
+    }
+  }
+
+  /**
+   * Change password with token (for authenticated users)
+   */
+  async changePassword(
+    changePasswordDto: ChangePasswordDto,
+    request: Request,
+  ): Promise<ChangePasswordResponseDto> {
+    const { token, newPassword } = changePasswordDto;
+
+    // Get authenticated session
+    const session = (request as any).user;
+    
+    if (!session || !session.userId) {
+      throw new UnauthorizedException('You must be logged in to change your password');
+    }
+
+    // Find and validate token
+    const passwordReset = await this.passwordResetService.findValidToken(token);
+
+    if (!passwordReset) {
+      throw new BadRequestException('Invalid or expired verification token');
+    }
+
+    // Verify the token belongs to the authenticated user
+    if (passwordReset.userId !== session.userId) {
+      throw new UnauthorizedException('This verification token does not belong to your account');
+    }
+
+    // Find user
+    const user = await this.usersService.findById(session.userId);
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Hash new password
+    const hashedPassword = await this.encryptionService.hash(newPassword);
+
+    // Update user password
+    user.password = hashedPassword;
+    await user.save();
+
+    // Mark token as used
+    await this.passwordResetService.markTokenAsUsed(passwordReset._id);
+
+    // Send confirmation email
+    await this.notificationService.sendPasswordResetConfirmation(
+      user.email,
+      user.firstName,
+    );
+
+    console.log(`Password changed successfully for user: ${user.email}`);
+
+    // Return success response (user stays logged in with same session)
+    return {
+      success: true,
+      message: 'Your password has been changed successfully',
     };
   }
 
@@ -340,4 +499,197 @@ export class AuthService {
       }),
     };
   }
+
+  /**
+   * Request email change (Step 1)
+   * Sends verification token to current email
+   * Requires authenticated session
+   */
+  async changeEmailRequest(session: ISession): Promise<ChangeEmailRequestResponseDto> {
+    if (!session || !session.userId) {
+      throw new UnauthorizedException('You must be logged in to change your email');
+    }
+
+    // Get user's current email
+    const user = await this.usersService.findById(session.userId);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Generate token and create email change request
+    const token = await this.emailChangeService.createChangeRequest(
+      session.userId,
+      user.email,
+    );
+
+    // Send verification email to current address
+    await this.notificationService.sendCurrentEmailVerification(
+      user.email,
+      `${user.firstName} ${user.lastName}`,
+      token,
+    );
+
+    console.log(`📧 Email change requested for user: ${user.email} (Step 1: Current email verification sent)`);
+
+    // Partially mask email for security
+    const maskedEmail = this.maskEmail(user.email);
+
+    return {
+      message: 'Verification email sent to your current email address. Please check your inbox.',
+      sentTo: maskedEmail,
+    };
+  }
+
+  /**
+   * Submit new email with current email token (Step 2)
+   * Validates current email token and sends verification to new email
+   * Requires authenticated session
+   */
+  async changeEmail(
+    changeEmailDto: ChangeEmailDto,
+    session: ISession,
+  ): Promise<ChangeEmailResponseDto> {
+    if (!session || !session.userId) {
+      throw new UnauthorizedException('You must be logged in to change your email');
+    }
+
+    const { token, newEmail } = changeEmailDto;
+
+    // Validate token from current email
+    const emailChange = await this.emailChangeService.findValidCurrentEmailToken(
+      session.userId,
+      token,
+    );
+
+    if (!emailChange) {
+      throw new BadRequestException('Invalid or expired verification token');
+    }
+
+    // Ensure new email is different from current
+    if (newEmail.toLowerCase() === emailChange.currentEmail.toLowerCase()) {
+      throw new BadRequestException('New email must be different from current email');
+    }
+
+    // Check if new email is already in use
+    const existingUser = await this.usersService.findByEmail(newEmail);
+    if (existingUser) {
+      throw new BadRequestException('This email address is already registered');
+    }
+
+    // Check if new email is pending change for another user
+    const isPending = await this.emailChangeService.isEmailPendingChange(newEmail);
+    if (isPending) {
+      throw new BadRequestException('This email address is already pending verification for another account');
+    }
+
+    // Get user info for email
+    const user = await this.usersService.findById(session.userId);
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    // Update to step 2 and generate new email token
+    const newEmailToken = await this.emailChangeService.updateToStepTwo(
+      emailChange._id.toString(),
+      newEmail,
+    );
+
+    // Send verification email to new address
+    await this.notificationService.sendNewEmailVerification(
+      newEmail,
+      `${user.firstName} ${user.lastName}`,
+      emailChange.currentEmail,
+      newEmailToken,
+    );
+
+    console.log(`📧 Email change progressing: ${emailChange.currentEmail} → ${newEmail} (Step 2: New email verification sent)`);
+
+    // Partially mask email for security
+    const maskedEmail = this.maskEmail(newEmail);
+
+    return {
+      message: 'Verification email sent to your new email address. Please check the inbox to complete the change.',
+      sentTo: maskedEmail,
+    };
+  }
+
+  /**
+   * Confirm email change with new email token (Step 3)
+   * Validates new email token and completes the email change
+   * Public endpoint (token-based authentication)
+   */
+  async confirmEmailChange(
+    confirmEmailChangeDto: ConfirmEmailChangeDto,
+  ): Promise<ConfirmEmailChangeResponseDto> {
+    const { token } = confirmEmailChangeDto;
+
+    // Validate token from new email
+    const emailChange = await this.emailChangeService.findValidNewEmailToken(token);
+
+    if (!emailChange) {
+      throw new BadRequestException('Invalid or expired verification token');
+    }
+
+    if (!emailChange.newEmail) {
+      throw new BadRequestException('Invalid email change request');
+    }
+
+    // Double-check new email isn't taken (race condition protection)
+    const existingUser = await this.usersService.findByEmail(emailChange.newEmail);
+    if (existingUser && existingUser._id.toString() !== emailChange.userId) {
+      throw new BadRequestException('This email address is no longer available');
+    }
+
+    // Update user's email
+    await this.usersService.update(emailChange.userId, {
+      email: emailChange.newEmail,
+    });
+
+    // Mark email change as completed
+    await this.emailChangeService.completeEmailChange(emailChange._id.toString());
+
+    // Get user info for confirmation email
+    const user = await this.usersService.findById(emailChange.userId);
+    if (user) {
+      // Send confirmation to new email
+      await this.notificationService.sendEmailChangeConfirmation(
+        emailChange.newEmail,
+        `${user.firstName} ${user.lastName}`,
+      );
+    }
+
+    // Revoke all sessions for this user (force re-login with new email)
+    await this.sessionService.revokeAllUserSessions(emailChange.userId);
+
+    // Create a new unauthenticated visitor session
+    const tenant = 'blocomanager'; // Default tenant
+    const newSession = await this.sessionService.create(tenant);
+
+    // Generate JWT token for the new visitor session
+    const access_token = this.jwtService.sign({
+      id: newSession.id,
+    });
+
+    console.log(`✅ Email change completed: ${emailChange.currentEmail} → ${emailChange.newEmail} (All sessions revoked, new visitor session created)`);
+
+    return {
+      success: true,
+      message: 'Email address successfully changed. Please log in with your new email.',
+      newEmail: emailChange.newEmail,
+      access_token,
+    };
+  }
+
+  /**
+   * Helper: Mask email for security
+   * user@example.com → u***@example.com
+   */
+  private maskEmail(email: string): string {
+    const [local, domain] = email.split('@');
+    if (local.length <= 2) {
+      return `${local[0]}***@${domain}`;
+    }
+    return `${local[0]}${'*'.repeat(local.length - 1)}@${domain}`;
+  }
 }
+
