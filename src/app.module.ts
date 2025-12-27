@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { AppService } from './app.service';
 import { AppController } from './app.controller';
 import { PaymentModule } from './payment/payment.module';
@@ -11,6 +12,8 @@ import { DateTimeModule } from './date-time/date-time.module';
 import { SessionModule } from './session/session.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { MongooseModule } from '@nestjs/mongoose';
+import { ScheduleModule } from '@nestjs/schedule';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { AuthModule } from './auth/auth.module';
@@ -19,10 +22,19 @@ import { ProductModule } from './product/product.module';
 import { CartModule } from './cart/cart.module';
 import { ChatModule } from './chat/chat.module';
 import { TenantModule } from './tenant/tenant.module';
+import { EmailChangeModule } from './email-change/email-change.module';
+import { ContactModule } from './contact/contact.module';
 @Module({
   imports: [
     TenantModule,
     AuthModule,
+    EmailChangeModule,
+    ContactModule,
+    ScheduleModule.forRoot(),
+    ThrottlerModule.forRoot([{
+      ttl: 60000, // 60 seconds = 1 minute
+      limit: 10, // 10 requests per minute (default for most endpoints)
+    }]),
     PaymentModule,
     MeetingModule,
     NotificationModule,
@@ -57,6 +69,12 @@ import { TenantModule } from './tenant/tenant.module';
     ChatModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: ThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

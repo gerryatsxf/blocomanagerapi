@@ -55,7 +55,13 @@ $ cp env/dev.env.example env/dev.env
 
 2. Edit `env/dev.env` with your local configuration values
 
-3. Start the local MongoDB database:
+3. **[Optional] Set up Gmail API for email notifications**:
+   - See [GMAIL_SETUP.md](./GMAIL_SETUP.md) for complete instructions
+   - Run `node scripts/generate-gmail-token.js` to generate OAuth tokens
+   - Enables: Welcome emails on registration, password reset emails
+   - Without Gmail setup, emails will be logged to console
+
+4. Start the local MongoDB database:
 ```bash
 $ docker run -d --name aprendecoding_mongodb \
   -p 27017:27017 \
