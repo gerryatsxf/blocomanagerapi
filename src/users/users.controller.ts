@@ -1,10 +1,12 @@
-import {Controller, Get, UseGuards, Request, Delete, Param, HttpCode, HttpStatus, UnauthorizedException, NotFoundException} from '@nestjs/common';
-import {ApiBearerAuth, ApiTags, ApiResponse, ApiOperation, ApiParam} from '@nestjs/swagger';
+import {Controller, Get, UseGuards, Request, Delete, Param, HttpCode, HttpStatus, UnauthorizedException, NotFoundException, Patch, Body} from '@nestjs/common';
+import {ApiBearerAuth, ApiTags, ApiResponse, ApiOperation, ApiParam, ApiBody} from '@nestjs/swagger';
 import {JwtAuthGuard} from 'src/auth/guards/jwt-auth.guard';
 import {GetProfileResponseDto} from './dto/get-profile-response.dto';
 import {UsersService} from './users.service';
 import {GetProfileResultDto, UserProfileDto} from './dto/get-profile-result.dto';
 import {GetVisitorSessionResponseDto} from './dto/get-visitor-session-response.dto';
+import {UpdateProfileDto} from './dto/update-profile.dto';
+import {UpdateProfileResponseDto} from './dto/update-profile-response.dto';
 import {AuthService} from '../auth/auth.service';
 
 @ApiTags('Users')
@@ -173,5 +175,181 @@ Use the new \`access_token\` for subsequent visitor activity. The account and al
     // Revoke current session and create new unauthenticated session
     // This is the same behavior as logout
     return this.authService.deleteAccountAndDegradeSession(session, req);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('profile')
+  @ApiBearerAuth()
+  @ApiOperation({ 
+    summary: 'Update your profile (first name, last name)',
+    description: `Updates the authenticated user's profile information. Use PATCH to update specific fields without affecting others.
+    
+    **Updatable Fields:**
+    • firstName (optional)
+    • lastName (optional)
+    
+    **NOT Updatable via this endpoint:**
+    • email - Use a separate email change flow (requires verification)
+    • password - Use POST /auth/change-password-request endpoint
+    
+    **Frontend Implementation:**
+    1. User edits profile in settings
+    2. Make PATCH request with Authorization header
+    3. Body contains only fields to update (partial update)
+    4. On success: update UI with new profile data
+    5. Handle validation errors inline
+    
+    **Examples:**
+    Update both names:
+    \`\`\`json
+    {
+      "firstName": "John",
+      "lastName": "Doe"
+    }
+    \`\`\`
+    
+    Update only first name:
+    \`\`\`json
+    {
+      "firstName": "Jane"
+    }
+    \`\`\`
+    
+    Update only last name:
+    \`\`\`json
+    {
+      "lastName": "Smith"
+    }
+    \`\`\``
+  })
+  @ApiBody({ 
+    type: UpdateProfileDto,
+    examples: {
+      bothNames: {
+        summary: 'Update both first and last name',
+        value: {
+          firstName: 'John',
+          lastName: 'Doe'
+        }
+      },
+      firstNameOnly: {
+        summary: 'Update only first name',
+        value: {
+          firstName: 'Jane'
+        }
+      },
+      lastNameOnly: {
+        summary: 'Update only last name',
+        value: {
+          lastName: 'Smith'
+        }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Profile updated successfully',
+    type: UpdateProfileResponseDto,
+    schema: {
+      example: {
+        success: true,
+        message: 'Profile updated successfully',
+        user: {
+          email: 'user@example.com',
+          firstName: 'John',
+          lastName: 'Doe'
+        }
+      }
+    }
+  })
+  @ApiResponse({ 
+    status: 400, 
+    description: 'Bad request - validation failed',
+    schema: {
+      oneOf: [
+        {
+          description: 'Empty name provided',
+          example: {
+            statusCode: 400,
+            message: ['First name cannot be empty'],
+            error: 'Bad Request'
+          }
+        },
+        {
+          description: 'Name too long',
+          example: {
+            statusCode: 400,
+            message: ['First name cannot exceed 50 characters'],
+            error: 'Bad Request'
+          }
+        },
+        {
+          description: 'No fields to update',
+          example: {
+            statusCode: 400,
+            message: 'No fields to update. Provide at least firstName or lastName.',
+            error: 'Bad Request'
+          }
+        }
+      ]
+    }
+  })
+  @ApiResponse({ 
+    status: 401, 
+    description: 'Unauthorized - must be logged in to update profile',
+    schema: {
+      example: {
+        statusCode: 401,
+        message: 'You must be logged in to update your profile',
+        error: 'Unauthorized'
+      }
+    }
+  })
+  async updateProfile(
+    @Body() updateProfileDto: UpdateProfileDto,
+    @Request() req,
+  ): Promise<UpdateProfileResponseDto> {
+    const session = req.user;
+    
+    // Ensure this is an authenticated session
+    if (!session || !session.userId) {
+      throw new UnauthorizedException('You must be logged in to update your profile');
+    }
+
+    // Validate at least one field is provided
+    if (!updateProfileDto.firstName && !updateProfileDto.lastName) {
+      throw new UnauthorizedException('No fields to update. Provide at least firstName or lastName.');
+    }
+
+    // SECURITY: Explicitly whitelist only firstName and lastName
+    // This prevents any attempt to update email, password, or other sensitive fields
+    const allowedUpdates: Partial<{ firstName: string; lastName: string }> = {};
+    
+    if (updateProfileDto.firstName !== undefined) {
+      allowedUpdates.firstName = updateProfileDto.firstName;
+    }
+    
+    if (updateProfileDto.lastName !== undefined) {
+      allowedUpdates.lastName = updateProfileDto.lastName;
+    }
+
+    // Update user profile with only whitelisted fields
+    const updatedUser = await this.usersService.update(session.userId, allowedUpdates);
+
+    if (!updatedUser) {
+      throw new NotFoundException('User not found');
+    }
+
+    console.log(`✏️  Profile updated for user: ${updatedUser.email}`);
+
+    return {
+      success: true,
+      message: 'Profile updated successfully',
+      user: {
+        email: updatedUser.email,
+        firstName: updatedUser.firstName,
+        lastName: updatedUser.lastName,
+      }
+    };
   }
 }

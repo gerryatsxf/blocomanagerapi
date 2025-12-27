@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ConflictException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument } from './entities/user.entity';
@@ -34,6 +34,12 @@ export class UsersService {
     firstName?: string,
     lastName?: string,
   ): Promise<UserDocument> {
+    // Check if email already exists
+    const existingUser = await this.findByEmail(email);
+    if (existingUser) {
+      throw new ConflictException('An account with this email address already exists. Please use a different email or try logging in.');
+    }
+
     const hashedPassword = await this.encryptionService.hash(password);
     const verificationToken = this.generateVerificationToken();
     
@@ -47,7 +53,15 @@ export class UsersService {
       emailVerificationToken: verificationToken,
     });
 
-    return newUser.save();
+    try {
+      return await newUser.save();
+    } catch (error) {
+      // Handle MongoDB duplicate key error (race condition)
+      if (error.code === 11000) {
+        throw new ConflictException('An account with this email address already exists. Please use a different email or try logging in.');
+      }
+      throw error;
+    }
   }
 
   /**
