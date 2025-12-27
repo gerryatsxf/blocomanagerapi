@@ -51,12 +51,12 @@
 - [x] Add proper Swagger documentation with @ApiBearerAuth
 
 ### 2. Session Refresh/Renewal
-**Priority: HIGH**
-- [ ] Create `POST /auth/refresh` endpoint
-- [ ] Allow extending session duration before expiration
-- [ ] Validate current token and session status
-- [ ] Update session timestamp and return new token
-- [ ] Handle edge case: session already expired
+**Priority: HIGH** ✅ **COMPLETED**
+- [x] Create `POST /auth/refresh` endpoint
+- [x] Allow extending session duration before expiration
+- [x] Validate current token and session status
+- [x] Update session timestamp (no new token needed - session updated in DB)
+- [x] Handle edge case: session already expired
 
 ### 3. Logout Mechanism
 **Priority: MEDIUM** ✅ **COMPLETED**
@@ -69,14 +69,19 @@
 
 ### 4. Password Reset Flow
 **Priority: MEDIUM** ✅ **COMPLETED**
-- [x] Create `POST /auth/forgot-password` endpoint
-- [x] Generate password reset token (random, time-limited)
-- [x] Store reset token in dedicated PasswordReset collection with expiration
-- [x] Send password reset email (NotificationService with console.log placeholder)
-- [x] Create `POST /auth/reset-password` endpoint
-- [x] Validate reset token and update password
+- [x] Create `POST /auth/forgot-password` endpoint (public, for visitors)
+- [x] Generate password reset token (random, time-limited, 1 hour expiration)
+- [x] Store reset token in dedicated PasswordReset collection with bcrypt hashing
+- [x] Send password reset email with HTML templates
+- [x] Create `POST /auth/reset-password` endpoint (public)
+- [x] Validate reset token using bcrypt compare (not hash)
 - [x] Invalidate reset token after use
-- [x] Return new access token on successful reset for automatic login
+- [x] **Separated change-password flow for authenticated users**:
+  - [x] `POST /auth/change-password-request` (authenticated)
+  - [x] `POST /auth/change-password` (authenticated, keeps session active)
+  - [x] Uses PasswordResetType enum to distinguish flows
+- [x] User remains visitor after forgot-password reset (must login)
+- [x] Comprehensive Swagger documentation with frontend examples
 
 ### 5. Session Cleanup
 **Priority: MEDIUM**
@@ -86,30 +91,95 @@
 - [ ] Consider archiving sessions for analytics before deletion
 
 ### 6. Rate Limiting
-**Priority: MEDIUM**
-- [ ] Install @nestjs/throttler package
-- [ ] Add rate limiting to `/auth/register` endpoint
-- [ ] Add rate limiting to `/auth/login` endpoint
-- [ ] Add rate limiting to `/auth/forgot-password` endpoint
-- [ ] Configure appropriate limits (e.g., 5 attempts per 15 minutes)
-- [ ] Return 429 Too Many Requests with proper error message
+**Priority: MEDIUM** ✅ **COMPLETED**
+- [x] Install @nestjs/throttler package
+- [x] Add rate limiting to `/auth/register` endpoint (5 requests per 15 minutes)
+- [x] Add rate limiting to `/auth/login` endpoint (5 requests per 15 minutes)
+- [x] Add rate limiting to `/auth/forgot-password` endpoint (3 requests per 15 minutes)
+- [x] Configure ThrottlerModule globally in AppModule
+- [x] Apply ThrottlerGuard globally via APP_GUARD provider
+- [x] Use @Throttle decorator for per-endpoint rate limits
+- [x] Return 429 Too Many Requests with proper error message
+- [x] Add comprehensive Swagger documentation for rate limits
 
 ### 7. Email Verification
-**Priority: LOW**
-- [ ] Add `emailVerified` boolean field to user schema
-- [ ] Generate email verification token on registration
-- [ ] Send verification email with token link
-- [ ] Create `GET /auth/verify-email?token=xxx` endpoint
-- [ ] Mark email as verified when token is valid
-- [ ] Optionally block unverified users from certain actions
+**Priority: LOW** ✅ **COMPLETED**
+- [x] Add `emailVerified` boolean field to user schema
+- [x] Generate email verification token on registration
+- [x] Send verification email with token link in welcome email
+- [x] Create `POST /auth/verify-email` endpoint
+- [x] Mark email as verified when token is valid
+- [x] Return proper success/error messages
+- [x] Handle already-verified case gracefully
 
-### 8. Multi-Device Session Management
+### 8. Email Change Flow
+**Priority: HIGH** ✅ **COMPLETED**
+- [x] **3-step secure email change process** (enterprise-grade security)
+- [x] Step 1: `POST /auth/change-email-request` (authenticated)
+  - [x] Sends verification token to CURRENT email
+  - [x] Requires authenticated session
+- [x] Step 2: `POST /auth/change-email` (authenticated)
+  - [x] Validates token from current email
+  - [x] Accepts new email address
+  - [x] Sends verification token to NEW email
+  - [x] Checks email availability and pending changes
+- [x] Step 3: `POST /auth/confirm-email-change` (public)
+  - [x] Validates token from new email
+  - [x] Updates user email in database
+  - [x] **Revokes all active sessions** across all devices
+  - [x] **Returns new visitor session token**
+  - [x] Forces re-login with new email
+- [x] Uses EmailChange collection with step tracking (VERIFY_CURRENT, VERIFY_NEW, COMPLETED)
+- [x] Bcrypt token validation (same security as password reset)
+- [x] Race condition protection (double-checks availability)
+- [x] Email masking in responses for security
+- [x] Comprehensive Swagger documentation with security model explanation
+- [x] HTML email templates for all 3 steps
+
+### 9. Profile Management
+**Priority: MEDIUM** ✅ **COMPLETED**
+- [x] Create `PATCH /users/profile` endpoint
+- [x] Allow updating firstName and lastName
+- [x] **Security whitelist approach** - explicitly blocks email/password updates
+- [x] Requires authenticated session
+- [x] Validation for field lengths (1-50 characters)
+- [x] Returns updated profile data
+- [x] Comprehensive Swagger documentation
+
+### 10. Account Deletion
+**Priority: MEDIUM** ✅ **COMPLETED**
+- [x] Create `DELETE /users/me` endpoint
+- [x] Permanently delete user account and all data
+- [x] Revoke current authenticated session
+- [x] Return new visitor session token (like logout)
+- [x] Requires authenticated session
+- [x] Cannot delete using visitor token
+- [x] Proper error handling and confirmation
+
+### 11. Multi-Device Session Management
 **Priority: LOW**
 - [ ] Create `GET /auth/sessions` endpoint to list user's active sessions
 - [ ] Add device/browser info to session schema (user agent, IP)
 - [ ] Create `DELETE /auth/sessions/:sessionId` to revoke specific session
 - [ ] Create `DELETE /auth/sessions/all` to logout from all devices
 - [ ] Show last active timestamp for each session
+- [x] **Implemented**: `revokeAllUserSessions()` in SessionService (used by email change)
+
+---
+
+## 🆕 Additional Features Implemented
+
+### Contact Form System
+**Priority: MEDIUM** ✅ **COMPLETED**
+- [x] Create `POST /contact` endpoint (public, no authentication)
+- [x] Accept: name, email, subject, priority, message
+- [x] Priority levels: low, medium, high, urgent
+- [x] Generate unique reference ID (format: CR-YYYYMMDD-XXXXXX)
+- [x] Store in Contact collection with status tracking
+- [x] Status enum: NEW, IN_PROGRESS, RESOLVED, CLOSED
+- [x] MongoDB indexes for performance (referenceId, email, status, priority)
+- [x] Full validation with class-validator
+- [x] Comprehensive Swagger documentation with 3 example scenarios
 
 ---
 
@@ -142,10 +212,29 @@
 - JWT secret stored in environment variable: JWT_SECRET
 - Sessions stored in MongoDB with optional userId field
 - Multi-tenant system uses email domain detection
-- Password hashing handled by EncryptionService
+- Password hashing handled by EncryptionService (bcrypt)
+- **Token security**: All tokens (password reset, email change) use bcrypt hashing
+- **Email change security**: Requires access to CURRENT email, NEW email, AND authenticated session
+- **Session revocation**: Implemented for logout, account deletion, and email change
 
 ### Authentication Flow:
 1. **Visitor creates session**: `POST /auth/session` → Returns JWT with session ID
 2. **New user registers**: `POST /auth/register` (requires session token) → Updates session with userId → Returns new JWT
 3. **Existing user logs in**: `POST /auth/login` (requires session token) → Updates session with userId → Returns new JWT
 4. Both registration and login convert visitor sessions to authenticated sessions (doesn't create duplicates)
+5. **Logout**: Revokes current session, returns new visitor session token
+6. **Account deletion**: Deletes user, revokes session, returns new visitor token
+7. **Email change**: 3-step verification, revokes all sessions, returns new visitor token
+
+### Password Management:
+- **Forgot password** (visitor/public): User stays visitor after reset, must login manually
+- **Change password** (authenticated): User stays authenticated after change, session preserved
+- Two separate flows using PasswordResetType enum: FORGOT_PASSWORD, CHANGE_PASSWORD
+
+### Email Change Security Model:
+Requires access to THREE separate resources:
+1. Active authenticated session (logged in)
+2. Current email inbox (proves ownership of existing email)
+3. New email inbox (proves ownership of target email)
+
+This protects against account takeover even if attacker has password + session.
