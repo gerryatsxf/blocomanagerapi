@@ -5,6 +5,12 @@ import { IsEmail, IsNotEmpty } from 'class-validator';
 
 export type UserDocument = User & Document;
 
+export enum UserRole {
+  USER = 'user',
+  TENANT_ADMIN = 'tenantAdmin',
+  SUPER_ADMIN = 'superAdmin',
+}
+
 @Schema({ timestamps: true })
 export class User {
   @ApiProperty({
@@ -17,6 +23,14 @@ export class User {
 
   @Prop({ required: true })
   password: string;
+
+  @ApiProperty({
+    type: String,
+    enum: UserRole,
+    default: UserRole.USER,
+  })
+  @Prop({ type: String, enum: UserRole, default: UserRole.USER })
+  role: UserRole;
 
   @ApiProperty({
     type: String,

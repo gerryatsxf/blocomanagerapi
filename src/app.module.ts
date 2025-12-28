@@ -25,6 +25,8 @@ import { TenantModule } from './tenant/tenant.module';
 import { EmailChangeModule } from './email-change/email-change.module';
 import { ContactModule } from './contact/contact.module';
 import { SubscriptionModule } from './subscription/subscription.module';
+import { AdminModule } from './admin/admin.module';
+
 @Module({
   imports: [
     TenantModule,
@@ -32,6 +34,7 @@ import { SubscriptionModule } from './subscription/subscription.module';
     EmailChangeModule,
     ContactModule,
     SubscriptionModule,
+    AdminModule,
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{
       ttl: 60000, // 60 seconds = 1 minute

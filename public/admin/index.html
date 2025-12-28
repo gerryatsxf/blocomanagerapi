@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BlocoManager Admin Panel</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="admin-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <h2>🛡️ Admin Panel</h2>
+            </div>
+            <nav class="nav">
+                <button class="nav-btn active" data-view="dashboard">Dashboard</button>
+                <button class="nav-btn" data-view="users">Users</button>
+                <button class="nav-btn" data-view="tenants">Tenants</button>
+                <button class="nav-btn" data-view="subscriptions">Subscriptions</button>
+            </nav>
+            <div class="sidebar-footer">
+                <button class="logout-btn" id="logoutBtn">Logout</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Header -->
+            <header class="header">
+                <h1 id="pageTitle">Dashboard</h1>
+                <div class="user-info" id="userInfo"></div>
+            </header>
+
+            <!-- Login View -->
+            <div id="loginView" class="view">
+                <div class="login-container">
+                    <div class="login-box">
+                        <h2>Admin Login</h2>
+                        <p class="login-subtitle">Super Admin Access Only</p>
+                        <form id="loginForm">
+                            <div class="form-group">
+                                <label>Email</label>
+                                <input type="email" id="loginEmail" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Password</label>
+                                <input type="password" id="loginPassword" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Login</button>
+                        </form>
+                        <div id="loginError" class="error-message"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dashboard View -->
+            <div id="dashboardView" class="view" style="display: none;">
+                <div class="stats-grid" id="statsGrid">
+                    <div class="stat-card">
+                        <div class="stat-icon">👥</div>
+                        <div class="stat-content">
+                            <h3 id="totalUsers">-</h3>
+                            <p>Total Users</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">🏢</div>
+                        <div class="stat-content">
+                            <h3 id="totalTenants">-</h3>
+                            <p>Tenants</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">💳</div>
+                        <div class="stat-content">
+                            <h3 id="totalSubscriptions">-</h3>
+                            <p>Subscriptions</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon">⚡</div>
+                        <div class="stat-content">
+                            <h3 id="activeSessions">-</h3>
+                            <p>Active Sessions</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Users View -->
+            <div id="usersView" class="view" style="display: none;">
+                <div class="toolbar">
+                    <input type="search" id="userSearch" placeholder="Search users...">
+                    <button class="btn btn-secondary" id="refreshUsers">Refresh</button>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Email</th>
+                                <th>Name</th>
+                                <th>Role</th>
+                                <th>Email Verified</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="usersTableBody"></tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="usersPagination"></div>
+            </div>
+
+            <!-- Tenants View -->
+            <div id="tenantsView" class="view" style="display: none;">
+                <div class="toolbar">
+                    <button class="btn btn-secondary" id="refreshTenants">Refresh</button>
+                </div>
+                <div class="tenant-grid" id="tenantGrid"></div>
+            </div>
+
+            <!-- Subscriptions View -->
+            <div id="subscriptionsView" class="view" style="display: none;">
+                <div class="toolbar">
+                    <button class="btn btn-secondary" id="refreshSubscriptions">Refresh</button>
+                </div>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Plan</th>
+                                <th>Created</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="subscriptionsTableBody"></tbody>
+                    </table>
+                </div>
+                <div class="pagination" id="subscriptionsPagination"></div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal for Edit User -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Edit User</h3>
+                <button class="modal-close" id="closeModal">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

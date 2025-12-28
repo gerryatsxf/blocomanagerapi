@@ -1,7 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { join } from 'path';
 import * as fs from 'fs';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
@@ -12,9 +13,14 @@ if (!process.env.DOCKER_ENV) {
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule, {
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
     cors: true,
+  });
+
+  // Serve static files for admin panel
+  app.useStaticAssets(join(__dirname, '..', 'public'), {
+    prefix: '/public/',
   });
 
   const config = new DocumentBuilder()
@@ -29,5 +35,6 @@ async function bootstrap() {
 
   await app.listen(3002);
   console.log(`Application is running on: ${await app.getUrl()}`);
+  console.log(`Admin panel available at: ${await app.getUrl()}/public/admin/index.html`);
 }
 bootstrap();

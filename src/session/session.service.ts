@@ -78,6 +78,18 @@ export class SessionService {
     );
   }
 
+  async findByUserId(userId: string): Promise<ISession[]> {
+    return this.sessionModel.find({ userId }).exec();
+  }
+
+  async findByTenant(tenant: string): Promise<ISession[]> {
+    return this.sessionModel.find({ tenant }).exec();
+  }
+
+  async deleteSessionsByUserId(userId: string): Promise<void> {
+    await this.sessionModel.deleteMany({ userId }).exec();
+  }
+
   // remove(id: number) {
   //   return `This action removes a #${id} session`;
   // }
