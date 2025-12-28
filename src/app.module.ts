@@ -24,12 +24,14 @@ import { ChatModule } from './chat/chat.module';
 import { TenantModule } from './tenant/tenant.module';
 import { EmailChangeModule } from './email-change/email-change.module';
 import { ContactModule } from './contact/contact.module';
+import { SubscriptionModule } from './subscription/subscription.module';
 @Module({
   imports: [
     TenantModule,
     AuthModule,
     EmailChangeModule,
     ContactModule,
+    SubscriptionModule,
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot([{
       ttl: 60000, // 60 seconds = 1 minute

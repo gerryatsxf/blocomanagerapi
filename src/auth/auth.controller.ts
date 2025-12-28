@@ -27,6 +27,7 @@ import { ChangeEmailResponseDto } from '../email-change/dto/change-email-respons
 import { ConfirmEmailChangeDto } from '../email-change/dto/confirm-email-change.dto';
 import { ConfirmEmailChangeResponseDto } from '../email-change/dto/confirm-email-change-response.dto';
 import { RefreshSessionResponseDto } from './dto/refresh-session-response.dto';
+import { SubscriptionService } from '../subscription/services/subscription.service';
 
 @ApiTags('Authentication')
 @Controller('auth')
@@ -34,6 +35,7 @@ export class AuthController {
   constructor(
     private authService: AuthService,
     private usersService: UsersService,
+    private subscriptionService: SubscriptionService,
   ) {}
 
   @Post('session')
@@ -282,6 +284,13 @@ setInterval(async () => {
       // Log error but don't fail registration
       console.error('Failed to send welcome email:', error);
     });
+    
+    // Create free tier subscription (async, don't wait for it)
+    this.subscriptionService.createFreeTierSubscription(user._id.toString())
+      .catch(error => {
+        // Log error but don't fail registration
+        console.error('Failed to create free tier subscription:', error);
+      });
     
     // Authenticate the session by associating it with the new user
     return this.authService.authenticateSession(session._id, user._id.toString());
