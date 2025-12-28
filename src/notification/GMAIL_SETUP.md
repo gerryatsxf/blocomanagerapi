@@ -172,9 +172,9 @@ Check the console output:
 
 ```bash
 # Gmail API Configuration (in env/dev.env)
-GOOGLE_EMAIL_CLIENT_ID=
-GOOGLE_EMAIL_CLIENT_SECRET=
-GOOGLE_EMAIL_PROJECT_ID=blocomanager
+GOOGLE_EMAIL_CLIENT_ID=your-client-id-here.apps.googleusercontent.com
+GOOGLE_EMAIL_CLIENT_SECRET=GOCSPX-your-client-secret-here
+GOOGLE_EMAIL_PROJECT_ID=your-project-id
 GOOGLE_EMAIL_AUTH_URI=https://accounts.google.com/o/oauth2/auth
 GOOGLE_EMAIL_TOKEN_URI=https://oauth2.googleapis.com/token
 GOOGLE_EMAIL_REDIRECT_URI=http://localhost:3002/auth/google/callback
