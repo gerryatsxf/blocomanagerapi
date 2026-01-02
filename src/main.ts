@@ -6,6 +6,7 @@ import { join } from 'path';
 import * as fs from 'fs';
 import * as dotenv from 'dotenv';
 import * as path from 'path';
+import { ConfigService } from '@nestjs/config';
 
 // Only load .env file if not running in Docker
 if (!process.env.DOCKER_ENV) {
@@ -17,6 +18,9 @@ async function bootstrap() {
     rawBody: true,
     cors: true,
   });
+
+  // Get ConfigService for VPN IP checking
+  const configService = app.get(ConfigService);
 
   // Serve static files for admin panel
   app.useStaticAssets(join(__dirname, '..', 'public'), {
@@ -31,7 +35,72 @@ async function bootstrap() {
     .build();
   const document = SwaggerModule.createDocument(app, config);
   fs.writeFileSync('./swagger-spec.json', JSON.stringify(document));
-  SwaggerModule.setup('swagger', app, document);
+
+  // Setup Swagger with VPN IP restriction
+  SwaggerModule.setup('swagger', app, document, {
+    swaggerOptions: {
+      persistAuthorization: true,
+    },
+    customSiteTitle: 'BlocoManager API Docs',
+    // Add middleware to check VPN IP before allowing access
+    customJsStr: `
+      // VPN check is handled by Express middleware
+    `,
+  });
+
+  // Middleware to protect Swagger endpoints
+  app.use('/swagger', (req, res, next) => {
+    const allowedIps = configService.get<string>('VPN_ALLOWED_IPS', '').split(',').map(ip => ip.trim()).filter(ip => ip.length > 0);
+    
+    if (allowedIps.length === 0) {
+      console.warn('⚠️  VPN_ALLOWED_IPS not configured for Swagger - allowing all IPs (DEVELOPMENT MODE)');
+      return next();
+    }
+
+    const clientIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim() 
+      || req.headers['x-real-ip']?.toString()
+      || req.ip 
+      || req.socket.remoteAddress 
+      || 'unknown';
+
+    console.log('Swagger access attempt from IP:', clientIp);
+
+    if (allowedIps.includes(clientIp)) {
+      return next();
+    }
+
+    res.status(403).json({
+      statusCode: 403,
+      message: `Access denied. Swagger is only accessible via VPN. Your IP: ${clientIp}`,
+    });
+  });
+
+  // Protect swagger-spec.json endpoint
+  app.use('/swagger-json', (req, res, next) => {
+    const allowedIps = configService.get<string>('VPN_ALLOWED_IPS', '').split(',').map(ip => ip.trim()).filter(ip => ip.length > 0);
+    
+    if (allowedIps.length === 0) {
+      console.warn('⚠️  VPN_ALLOWED_IPS not configured for Swagger JSON - allowing all IPs (DEVELOPMENT MODE)');
+      return next();
+    }
+
+    const clientIp = req.headers['x-forwarded-for']?.toString().split(',')[0]?.trim()
+      || req.headers['x-real-ip']?.toString()
+      || req.ip
+      || req.socket.remoteAddress
+      || 'unknown';
+
+    console.log('Swagger JSON access attempt from IP:', clientIp);
+
+    if (allowedIps.includes(clientIp)) {
+      return next();
+    }
+
+    res.status(403).json({
+      statusCode: 403,
+      message: `Access denied. Swagger JSON is only accessible via VPN. Your IP: ${clientIp}`,
+    });
+  });
 
   await app.listen(3002);
   console.log(`Application is running on: ${await app.getUrl()}`);

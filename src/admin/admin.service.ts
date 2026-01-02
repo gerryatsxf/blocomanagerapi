@@ -1,17 +1,24 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument, UserRole } from '../users/entities/user.entity';
 import { Subscription } from '../subscription/entities/subscription.schema';
+import { SuperAdminGrant } from './entities/super-admin-grant.entity';
 import { TENANT_CONFIGS } from '../tenant/config/tenant.config';
 import { SessionService } from '../session/session.service';
+import { NotificationService } from '../notification/notification.service';
+import { ConfigService } from '@nestjs/config';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class AdminService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Subscription.name) private subscriptionModel: Model<Subscription>,
+    @InjectModel(SuperAdminGrant.name) private superAdminGrantModel: Model<SuperAdminGrant>,
     private sessionService: SessionService,
+    private notificationService: NotificationService,
+    private configService: ConfigService,
   ) {}
 
   // ==================== USER MANAGEMENT ====================
@@ -246,6 +253,124 @@ export class AdminService {
       totalSubscriptions,
       usersByRole,
       subscriptionsByPlan,
+    };
+  }
+
+  // ==================== SUPER ADMIN GRANT FLOW ====================
+
+  /**
+   * Generate 6-digit code and send to admin email
+   */
+  async requestSuperAdminGrant(ipAddress: string): Promise<{ message: string }> {
+    const adminEmail = this.configService.get<string>('ADMIN_EMAIL');
+    
+    if (!adminEmail) {
+      throw new ConflictException('ADMIN_EMAIL not configured on server');
+    }
+
+    // Generate 6-digit code
+    const code = crypto.randomInt(100000, 999999).toString();
+    
+    // Create grant record with 5-minute expiry
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+    
+    await this.superAdminGrantModel.create({
+      code,
+      expiresAt,
+      used: false,
+      ipAddress,
+    });
+
+    // Send email with code
+    const emailSubject = 'Super Admin Grant Code';
+    const emailBody = `
+      <h2>Super Admin Grant Request</h2>
+      <p>A request has been made to grant super admin permissions.</p>
+      <p><strong>Your 6-digit code:</strong></p>
+      <h1 style="font-size: 48px; letter-spacing: 8px; color: #2563eb;">${code}</h1>
+      <p>This code expires in 5 minutes.</p>
+      <p><strong>IP Address:</strong> ${ipAddress}</p>
+      <p>If you did not request this, please ignore this email.</p>
+    `;
+    
+    // Use sendNotification with minimal structure
+    await this.notificationService['sendGmailEmail'](
+      adminEmail,
+      emailSubject,
+      emailBody,
+      `Super Admin Grant Code: ${code}. Expires in 5 minutes. IP: ${ipAddress}`,
+    );
+
+    return {
+      message: `Verification code sent to ${adminEmail}. Code expires in 5 minutes.`,
+    };
+  }
+
+  /**
+   * Validate code and grant super admin to target email
+   */
+  async grantSuperAdmin(code: string, targetEmail: string): Promise<{ message: string; user: any }> {
+    // Find valid, unused code
+    const grant = await this.superAdminGrantModel.findOne({
+      code,
+      used: false,
+      expiresAt: { $gt: new Date() },
+    });
+
+    if (!grant) {
+      throw new BadRequestException('Invalid or expired code');
+    }
+
+    // Find target user
+    const user = await this.userModel.findOne({ email: targetEmail });
+    
+    if (!user) {
+      throw new NotFoundException(`User with email ${targetEmail} not found`);
+    }
+
+    // Check if already super admin
+    if (user.role === UserRole.SUPER_ADMIN) {
+      throw new ConflictException('User is already a super admin');
+    }
+
+    // Grant super admin role
+    user.role = UserRole.SUPER_ADMIN;
+    await user.save();
+
+    // Mark code as used
+    grant.used = true;
+    grant.usedAt = new Date();
+    grant.grantedToEmail = targetEmail;
+    await grant.save();
+
+    // Send confirmation email to admin
+    const adminEmail = this.configService.get<string>('ADMIN_EMAIL');
+    if (adminEmail) {
+      const emailSubject = 'Super Admin Role Granted';
+      const emailBody = `
+        <h2>Super Admin Role Granted</h2>
+        <p>Super admin permissions have been successfully granted to:</p>
+        <p><strong>Email:</strong> ${targetEmail}</p>
+        <p><strong>Name:</strong> ${user.firstName || ''} ${user.lastName || ''}</p>
+        <p><strong>Granted at:</strong> ${new Date().toLocaleString()}</p>
+      `;
+      
+      await this.notificationService['sendGmailEmail'](
+        adminEmail,
+        emailSubject,
+        emailBody,
+        `Super Admin Role Granted to ${targetEmail} at ${new Date().toLocaleString()}`,
+      );
+    }
+
+    return {
+      message: 'Super admin role granted successfully',
+      user: {
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+      },
     };
   }
 }

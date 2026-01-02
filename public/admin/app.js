@@ -3,6 +3,8 @@ const API_BASE = window.location.origin;
 let authToken = localStorage.getItem('adminToken');
 let currentView = 'dashboard';
 let currentPage = 1;
+let grantTimer = null;
+let grantExpiresAt = null;
 
 // DOM Elements
 const loginView = document.getElementById('loginView');
@@ -29,6 +31,10 @@ function setupEventListeners() {
     // Login
     document.getElementById('loginForm')?.addEventListener('submit', handleLogin);
     
+    // Super Admin Grant
+    document.getElementById('requestCodeBtn')?.addEventListener('click', handleRequestCode);
+    document.getElementById('submitGrantBtn')?.addEventListener('click', handleGrantSuperAdmin);
+    
     // Navigation
     document.querySelectorAll('.nav-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -50,6 +56,137 @@ function setupEventListeners() {
     document.getElementById('editModal')?.addEventListener('click', (e) => {
         if (e.target.id === 'editModal') closeModal();
     });
+}
+
+// Super Admin Grant Functions
+async function handleRequestCode() {
+    const btn = document.getElementById('requestCodeBtn');
+    const errorEl = document.getElementById('grantError');
+    const form = document.getElementById('grantCodeForm');
+    
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+    errorEl.classList.remove('active');
+    
+    try {
+        const response = await fetch(`${API_BASE}/admin/request-superadmin`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Failed to request code');
+        }
+        
+        const data = await response.json();
+        
+        // Show form and start timer
+        form.style.display = 'block';
+        btn.style.display = 'none';
+        grantExpiresAt = Date.now() + (5 * 60 * 1000); // 5 minutes
+        startGrantTimer();
+        
+        alert(data.message);
+        
+    } catch (error) {
+        errorEl.textContent = error.message;
+        errorEl.classList.add('active');
+        btn.disabled = false;
+        btn.textContent = 'Request Verification Code';
+    }
+}
+
+function startGrantTimer() {
+    const timerEl = document.getElementById('timerDisplay');
+    
+    if (grantTimer) clearInterval(grantTimer);
+    
+    grantTimer = setInterval(() => {
+        const remaining = grantExpiresAt - Date.now();
+        
+        if (remaining <= 0) {
+            clearInterval(grantTimer);
+            timerEl.textContent = '00:00 - CODE EXPIRED';
+            timerEl.className = 'timer-display expired';
+            document.getElementById('submitGrantBtn').disabled = true;
+            return;
+        }
+        
+        const minutes = Math.floor(remaining / 60000);
+        const seconds = Math.floor((remaining % 60000) / 1000);
+        timerEl.textContent = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+        
+        if (remaining < 60000) {
+            timerEl.className = 'timer-display warning';
+        } else {
+            timerEl.className = 'timer-display';
+        }
+    }, 1000);
+}
+
+async function handleGrantSuperAdmin() {
+    const code = document.getElementById('grantCode').value;
+    const targetEmail = document.getElementById('grantTargetEmail').value;
+    const errorEl = document.getElementById('grantError');
+    const successEl = document.getElementById('grantSuccess');
+    const btn = document.getElementById('submitGrantBtn');
+    
+    if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) {
+        errorEl.textContent = 'Please enter a valid 6-digit code';
+        errorEl.classList.add('active');
+        return;
+    }
+    
+    if (!targetEmail) {
+        errorEl.textContent = 'Please enter target email';
+        errorEl.classList.add('active');
+        return;
+    }
+    
+    btn.disabled = true;
+    btn.textContent = 'Granting...';
+    errorEl.classList.remove('active');
+    successEl.style.display = 'none';
+    
+    try {
+        const response = await fetch(`${API_BASE}/admin/grant-superadmin`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code, targetEmail }),
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Failed to grant super admin');
+        }
+        
+        const data = await response.json();
+        
+        // Clear timer
+        if (grantTimer) clearInterval(grantTimer);
+        
+        // Show success
+        successEl.textContent = data.message;
+        successEl.style.display = 'block';
+        
+        // Clear form
+        document.getElementById('grantCode').value = '';
+        document.getElementById('grantTargetEmail').value = '';
+        
+        setTimeout(() => {
+            document.getElementById('grantCodeForm').style.display = 'none';
+            document.getElementById('requestCodeBtn').style.display = 'block';
+            successEl.style.display = 'none';
+        }, 5000);
+        
+    } catch (error) {
+        errorEl.textContent = error.message;
+        errorEl.classList.add('active');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Grant Super Admin';
+    }
 }
 
 // Auth Functions

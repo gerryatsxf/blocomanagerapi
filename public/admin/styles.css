@@ -515,3 +515,44 @@ body {
     border-radius: 6px;
     font-size: 0.9rem;
 }
+
+/* Grant Section */
+.grant-section {
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background: rgba(37, 99, 235, 0.05);
+    border: 1px solid var(--primary);
+    border-radius: 8px;
+}
+
+.grant-section h3 {
+    margin-bottom: 0.5rem;
+    font-size: 1.1rem;
+}
+
+.timer-display {
+    background: var(--bg-dark);
+    padding: 1rem;
+    border-radius: 6px;
+    text-align: center;
+    margin-bottom: 1rem;
+    font-size: 2rem;
+    font-weight: 600;
+    color: var(--primary);
+    font-family: 'Courier New', monospace;
+}
+
+.timer-display.warning {
+    color: var(--warning);
+}
+
+.timer-display.expired {
+    color: var(--danger);
+}
+
+#grantCode {
+    font-size: 1.5rem;
+    text-align: center;
+    letter-spacing: 0.5rem;
+    font-family: 'Courier New', monospace;
+}

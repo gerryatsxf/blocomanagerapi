@@ -1,20 +1,50 @@
-import { Controller, Get, Post, Put, Delete, Patch, Body, Param, Query, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Patch, Body, Param, Query, UseGuards, HttpCode, HttpStatus, Req } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SuperAdminGuard } from './guards/super-admin.guard';
+import { VpnOnlyGuard } from './guards/vpn-only.guard';
 import { AdminService } from './admin.service';
 import { UserRole } from '../users/entities/user.entity';
+import { RequestSuperAdminDto, GrantSuperAdminDto } from './dto/super-admin-grant.dto';
 
 @ApiTags('Admin')
 @Controller('admin')
-@UseGuards(JwtAuthGuard, SuperAdminGuard)
-@ApiBearerAuth()
+@UseGuards(VpnOnlyGuard) // All admin routes require VPN access
 export class AdminController {
   constructor(private readonly adminService: AdminService) {}
 
-  // ==================== DASHBOARD ====================
+  // ==================== SUPER ADMIN GRANT (NO AUTH) ====================
+
+  @Post('request-superadmin')
+  @Throttle({ default: { limit: 3, ttl: 3600000 } }) // 3 requests per hour
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Request super admin grant code (NO AUTH)',
+    description: 'Sends a 6-digit code to ADMIN_EMAIL. Rate limited to 3 requests per hour.',
+  })
+  async requestSuperAdminGrant(@Req() request: Request) {
+    const ipAddress = request.ip || request.socket.remoteAddress || 'unknown';
+    return this.adminService.requestSuperAdminGrant(ipAddress);
+  }
+
+  @Post('grant-superadmin')
+  @Throttle({ default: { limit: 10, ttl: 300000 } }) // 10 attempts per 5 minutes
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Grant super admin role using code (NO AUTH)',
+    description: 'Validates 6-digit code and grants super admin role to target email.',
+  })
+  async grantSuperAdmin(@Body() dto: GrantSuperAdminDto) {
+    return this.adminService.grantSuperAdmin(dto.code, dto.targetEmail);
+  }
+
+  // ==================== DASHBOARD (AUTH REQUIRED) ====================
 
   @Get('dashboard/stats')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get dashboard statistics' })
   async getDashboardStats() {
     return this.adminService.getDashboardStats();
@@ -23,6 +53,8 @@ export class AdminController {
   // ==================== USER MANAGEMENT ====================
 
   @Get('users')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all users' })
   async getAllUsers(
     @Query('page') page?: string,

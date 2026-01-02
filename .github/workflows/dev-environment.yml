@@ -71,6 +71,8 @@ jobs:
         GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
         GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
         GOOGLE_REDIRECT_URI: ${{ vars.GOOGLE_REDIRECT_URI }}
+        ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL }}
+        VPN_ALLOWED_IPS: ${{ vars.VPN_ALLOWED_IPS }}
         NODE_ENV: development
         PORT: 3002
         DOCKER_ENV: true
@@ -105,6 +107,8 @@ jobs:
         GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
         GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
         GOOGLE_REDIRECT_URI: ${{ vars.GOOGLE_REDIRECT_URI }}
+        ADMIN_EMAIL: ${{ vars.ADMIN_EMAIL }}
+        VPN_ALLOWED_IPS: ${{ vars.VPN_ALLOWED_IPS }}
         NODE_ENV: development
         PORT: 3002
         DOCKER_ENV: true
