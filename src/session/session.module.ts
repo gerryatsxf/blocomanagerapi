@@ -2,7 +2,7 @@
  * The main session module of the application.
  * It includes dependencies such as MongooseModule and EncryptionModule.
  */
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { SessionService } from './session.service';
 import { MongooseModule } from '@nestjs/mongoose';
 import { SessionSchema } from './entities/session.schema';
@@ -14,7 +14,7 @@ import { TenantModule } from '../tenant/tenant.module';
     // Setting up Mongoose feature for session using its schema
     MongooseModule.forFeature([{ name: 'Session', schema: SessionSchema }]),
     EncryptionModule,
-    TenantModule,
+    forwardRef(() => TenantModule),
   ],
   controllers: [], // No controllers for this module
   providers: [SessionService], // SessionService is provided here

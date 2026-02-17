@@ -14,24 +14,28 @@ export const TENANT_CONFIGS: Record<string, TenantConfig> = {
     domain: 'aprendecoding.com',
     name: 'Aprende Coding',
     description: 'Coding education platform',
+    storageProvider: 'local',
   },
   pedrorivero: {
     tenantId: 'pedrorivero',
     domain: 'pedrorivero.com',
     name: 'Pedro Rivero',
     description: 'Personal consulting services',
+    storageProvider: 'local',
   },
   blocomanager: {
     tenantId: 'blocomanager',
     domain: 'blocomanager.com',
     name: 'BlocoManager',
     description: 'Default tenant for BlocoManager services',
+    storageProvider: 'local',
   },
   development: {
     tenantId: 'development',
     domain: 'localhost',
     name: 'Development Environment',
     description: 'Local development tenant',
+    storageProvider: 'local',
   },
 };
 
@@ -63,4 +67,15 @@ export function getTenantConfig(tenantId: string): TenantConfig | null {
  */
 export function isValidTenant(tenantId: string): boolean {
   return tenantId in TENANT_CONFIGS;
+}
+
+/**
+ * Add a new tenant to the configuration dynamically
+ * @param config - The tenant configuration to add
+ * @returns The added tenant configuration
+ */
+export function addTenantToConfig(config: TenantConfig): TenantConfig {
+  TENANT_CONFIGS[config.tenantId] = config;
+  TENANT_DOMAIN_MAPPING[config.domain] = config.tenantId;
+  return config;
 }

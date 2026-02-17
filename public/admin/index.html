@@ -9,7 +9,7 @@
 <body>
     <div class="admin-container">
         <!-- Sidebar -->
-        <aside class="sidebar">
+        <aside class="sidebar" style="display: none;">
             <div class="logo">
                 <h2>🛡️ Admin Panel</h2>
             </div>
@@ -17,7 +17,8 @@
                 <button class="nav-btn active" data-view="dashboard">Dashboard</button>
                 <button class="nav-btn" data-view="users">Users</button>
                 <button class="nav-btn" data-view="tenants">Tenants</button>
-                <button class="nav-btn" data-view="subscriptions">Subscriptions</button>
+                <button class="nav-btn" data-view="products">Products</button>
+                <button class="nav-btn" data-view="settings">Settings</button>
             </nav>
             <div class="sidebar-footer">
                 <button class="logout-btn" id="logoutBtn">Logout</button>
@@ -27,7 +28,7 @@
         <!-- Main Content -->
         <main class="main-content">
             <!-- Header -->
-            <header class="header">
+            <header class="header" style="display: none;">
                 <h1 id="pageTitle">Dashboard</h1>
                 <div class="user-info" id="userInfo"></div>
             </header>
@@ -66,8 +67,25 @@
 
                         <hr style="margin: 2rem 0; border: none; border-top: 1px solid var(--border);">
 
+                        <!-- Google Login -->
+                        <h3>Login with Google</h3>
+                        <p style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                            Sign in using your Google account
+                        </p>
+                        <button type="button" id="googleLoginBtn" class="btn btn-primary" style="width: 100%; margin-bottom: 1rem; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                            <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
+                                <path d="M9.003 18c2.43 0 4.467-.806 5.956-2.184L12.05 13.56c-.806.54-1.836.86-3.047.86-2.344 0-4.328-1.584-5.036-3.711H.96v2.332C2.44 15.983 5.485 18 9.003 18z" fill="#34A853"/>
+                                <path d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71 0-.593.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+                                <path d="M9.003 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.464.891 11.426 0 9.003 0 5.485 0 2.44 2.017.96 4.958L3.967 7.29c.708-2.127 2.692-3.71 5.036-3.71z" fill="#EA4335"/>
+                            </svg>
+                            Sign in with Google
+                        </button>
+
+                        <hr style="margin: 2rem 0; border: none; border-top: 1px solid var(--border);">
+
                         <!-- Normal Login Form -->
-                        <h3>Already have access? Login</h3>
+                        <h3>Or login with email & password</h3>
                         <form id="loginForm">
                             <div class="form-group">
                                 <label>Email</label>
@@ -101,13 +119,7 @@
                             <p>Tenants</p>
                         </div>
                     </div>
-                    <div class="stat-card">
-                        <div class="stat-icon">💳</div>
-                        <div class="stat-content">
-                            <h3 id="totalSubscriptions">-</h3>
-                            <p>Subscriptions</p>
-                        </div>
-                    </div>
+
                     <div class="stat-card">
                         <div class="stat-icon">⚡</div>
                         <div class="stat-content">
@@ -122,12 +134,17 @@
             <div id="usersView" class="view" style="display: none;">
                 <div class="toolbar">
                     <input type="search" id="userSearch" placeholder="Search users...">
+                    <button class="btn btn-primary" id="addUserBtn">+ Add User</button>
                     <button class="btn btn-secondary" id="refreshUsers">Refresh</button>
+                    <button class="btn btn-danger" id="bulkDeleteUsersBtn" style="display: none;">Delete Selected (<span id="selectedCount">0</span>)</button>
                 </div>
                 <div class="table-container">
                     <table class="data-table">
                         <thead>
                             <tr>
+                                <th style="width: 40px;">
+                                    <input type="checkbox" id="selectAllUsers" title="Select all">
+                                </th>
                                 <th>Email</th>
                                 <th>Name</th>
                                 <th>Role</th>
@@ -145,30 +162,194 @@
             <!-- Tenants View -->
             <div id="tenantsView" class="view" style="display: none;">
                 <div class="toolbar">
+                    <button class="btn btn-primary" id="addTenantBtn">+ Add Tenant</button>
                     <button class="btn btn-secondary" id="refreshTenants">Refresh</button>
                 </div>
                 <div class="tenant-grid" id="tenantGrid"></div>
             </div>
 
-            <!-- Subscriptions View -->
-            <div id="subscriptionsView" class="view" style="display: none;">
+            <!-- Tenant Detail View -->
+            <div id="tenantDetailView" class="view" style="display: none;">
+                <div class="view-header" style="display: flex; align-items: center; gap: 1rem; margin-bottom: 2rem;">
+                    <button class="btn btn-secondary" onclick="switchView('tenants')" style="padding: 0.5rem 1rem;">
+                        ← Back to Tenants
+                    </button>
+                    <h2 id="tenantDetailTitle">Tenant Details</h2>
+                </div>
+                
+                <div class="card" style="max-width: 800px;">
+                    <div class="card-header">
+                        <h3>Tenant Information</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="tenantEditForm" onsubmit="handleTenantUpdate(event)">
+                            <div class="form-group">
+                                <label>Tenant ID *</label>
+                                <input type="text" id="detailTenantId" required pattern="[a-z0-9]+" minlength="3" maxlength="50">
+                                <small style="color: var(--text-secondary); font-size: 0.85rem;">Lowercase alphanumeric only, no spaces</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Domain *</label>
+                                <input type="text" id="detailTenantDomain" required pattern="[a-z0-9]+([\-\.]{1}[a-z0-9]+)*\.[a-z]{2,}">
+                                <small style="color: var(--text-secondary); font-size: 0.85rem;">Valid domain format (e.g., "example.com")</small>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Name *</label>
+                                <input type="text" id="detailTenantName" required minlength="2" maxlength="100">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label>Description</label>
+                                <textarea id="detailTenantDescription" maxlength="500" rows="4"></textarea>
+                            </div>
+                            
+                            <div class="modal-actions">
+                                <button type="button" class="btn btn-secondary" onclick="switchView('tenants')">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card" style="max-width: 800px; margin-top: 2rem;">
+                    <div class="card-header">
+                        <h3>Frontend Deployment</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="deploymentStatus" style="margin-bottom: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                                <span style="font-weight: 500;">Status:</span>
+                                <span id="deploymentStatusBadge" class="badge">-</span>
+                            </div>
+                            <div id="deploymentUrl" style="margin-bottom: 1rem; display: none;">
+                                <span style="font-weight: 500;">Frontend URL:</span>
+                                <a id="deploymentUrlLink" href="#" target="_blank" style="color: var(--primary); margin-left: 0.5rem;"></a>
+                            </div>
+                            <div id="deploymentDate" style="margin-bottom: 1rem; display: none;">
+                                <span style="font-weight: 500;">Deployed:</span>
+                                <span id="deploymentDateValue" style="margin-left: 0.5rem; color: var(--text-secondary);"></span>
+                            </div>
+                        </div>
+                        <div id="deploymentActions">
+                            <button id="undeployBtn" class="btn btn-danger" onclick="handleUndeploy()" style="display: none;">
+                                🗑️ Undeploy Frontend
+                            </button>
+                            <p id="deploymentMessage" style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.5rem;"></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="max-width: 800px; margin-top: 2rem;">
+                    <div class="card-header">
+                        <h3>Statistics</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+                            <div>
+                                <div style="font-size: 2rem; font-weight: bold; color: var(--primary);" id="detailUserCount">-</div>
+                                <div style="color: var(--text-secondary);">Total Users</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 2rem; font-weight: bold; color: var(--primary);" id="detailSessionCount">-</div>
+                                <div style="color: var(--text-secondary);">Total Sessions</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="max-width: 800px; margin-top: 2rem;">
+                    <div class="card-header">
+                        <h3>Storage Provider</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="storageProviderForm" onsubmit="handleStorageProviderUpdate(event)">
+                            <div class="form-group">
+                                <label>Storage Provider *</label>
+                                <select id="storageProviderSelect" required>
+                                    <option value="local">Local Storage (default)</option>
+                                    <option value="aws_s3">AWS S3</option>
+                                    <option value="azure_blob">Azure Blob Storage</option>
+                                    <option value="google_cloud">Google Cloud Storage</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Update Storage Provider</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card" style="max-width: 800px; margin-top: 2rem;">
+                    <div class="card-header">
+                        <h3>Tenant Admins</h3>
+                        <button class="btn btn-primary btn-sm" onclick="showAddTenantAdminModal()">+ Add Admin</button>
+                    </div>
+                    <div class="card-body">
+                        <div id="detailTenantAdmins" style="max-height: 300px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+
+                <div class="card" style="max-width: 800px; margin-top: 2rem;">
+                    <div class="card-header">
+                        <h3>Recent Users</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="detailRecentUsers" style="max-height: 400px; overflow-y: auto;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Products View -->
+            <div id="productsView" class="view" style="display: none;">
                 <div class="toolbar">
-                    <button class="btn btn-secondary" id="refreshSubscriptions">Refresh</button>
+                    <button class="btn btn-primary" id="addProductBtn">+ Add Product</button>
+                    <button class="btn btn-secondary" id="refreshProducts">Refresh</button>
                 </div>
                 <div class="table-container">
                     <table class="data-table">
                         <thead>
                             <tr>
-                                <th>User</th>
-                                <th>Plan</th>
+                                <th>Name</th>
+                                <th>Price</th>
+                                <th>Currency</th>
+                                <th>Tenant</th>
+                                <th>Status</th>
                                 <th>Created</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
-                        <tbody id="subscriptionsTableBody"></tbody>
+                        <tbody id="productsTableBody"></tbody>
                     </table>
                 </div>
-                <div class="pagination" id="subscriptionsPagination"></div>
+            </div>
+
+            <!-- Settings View -->
+            <div id="settingsView" class="view" style="display: none;">
+                <div class="view-header">
+                    <h2>Settings</h2>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Email Configuration</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label>Setup Email Service</label>
+                            <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                                Connect your Google account to enable the API to send emails on your behalf.
+                            </p>
+                            <div id="emailStatusContainer" style="margin-bottom: 1rem;">
+                                <p id="emailStatus" style="color: var(--text-secondary);">Loading status...</p>
+                            </div>
+                            <button id="googleAuthBtn" class="btn btn-primary" onclick="handleGoogleEmailSetup()">
+                                <span style="margin-right: 8px;">📧</span> Connect Google Account
+                            </button>
+                            <button id="googleDisconnectBtn" class="btn btn-danger" onclick="handleGoogleEmailDisconnect()" style="display: none; margin-left: 10px;">
+                                Disconnect
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         </main>
     </div>
@@ -183,6 +364,34 @@
             <div class="modal-body" id="modalBody"></div>
         </div>
     </div>
+
+    <!-- Modal for Add Tenant Admin -->
+    <div id="addTenantAdminModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add Tenant Admin</h3>
+                <button class="modal-close" onclick="closeAddTenantAdminModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="addTenantAdminForm" onsubmit="handleAddTenantAdmin(event)">
+                    <div class="form-group">
+                        <label>Select User</label>
+                        <select id="tenantAdminUserSelect" required style="width: 100%; padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border);">
+                            <option value="">Loading users...</option>
+                        </select>
+                        <small style="color: var(--text-secondary);">Only users without tenant admin roles are shown</small>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                        <button type="button" class="btn btn-secondary" onclick="closeAddTenantAdminModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Add Admin</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toastContainer"></div>
 
     <script src="app.js"></script>
 </body>

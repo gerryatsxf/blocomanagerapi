@@ -20,6 +20,7 @@ export const TENANT_CONFIG_MAP: Record<string, TenantConfig> = {
     authorizedProviders: [
       'blocomanager@gmail.com',
       'pedrorivero@gmail.com',
+      'test.lps.emails@gmail.com',
       // Add more provider emails as needed
     ],
     domain: 'api.blocomanager.com',

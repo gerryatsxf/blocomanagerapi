@@ -1,21 +1,34 @@
 import { Injectable } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { google } from 'googleapis';
 import { ConfigService } from '@nestjs/config';
-import { getTenantConfig, isEmailAuthorizedForTenant, getAuthorizedProviders, TENANT_CONFIG_MAP } from './config/tenant-email.config';
+import { GoogleOAuthToken, GoogleOAuthTokenDocument } from './entities/google-oauth-token.entity';
+import { User, UserDocument } from '../users/entities/user.entity';
 
 @Injectable()
 export class GoogleOAuthService {
   private oauth2Client: any;
+  // Keep in-memory cache for quick access, but persist to DB
+  private tokenCache = new Map<string, any>();
 
-  constructor(private configService: ConfigService) {
-    const clientId = this.configService.get<string>('GOOGLE_CLIENT_ID');
-    const clientSecret = this.configService.get<string>('GOOGLE_CLIENT_SECRET');
-    const redirectUri = this.configService.get<string>('GOOGLE_REDIRECT_URI');
+  constructor(
+    private configService: ConfigService,
+    @InjectModel(GoogleOAuthToken.name)
+    private googleOAuthTokenModel: Model<GoogleOAuthTokenDocument>,
+    @InjectModel(User.name)
+    private userModel: Model<UserDocument>,
+  ) {
+    // Use GOOGLE_EMAIL_* credentials for Gmail API access (Settings tab OAuth)
+    const clientId = this.configService.get<string>('GOOGLE_EMAIL_CLIENT_ID');
+    const clientSecret = this.configService.get<string>('GOOGLE_EMAIL_CLIENT_SECRET');
+    const redirectUri = this.configService.get<string>('GOOGLE_EMAIL_REDIRECT_URI');
     
-    console.log('🔧 Google OAuth Config:', {
+    console.log('🔧 Google OAuth Config (Email API):', {
       clientId: clientId ? `${clientId.substring(0, 10)}...` : 'MISSING',
       clientSecret: clientSecret ? 'SET' : 'MISSING',
-      redirectUri: redirectUri || 'MISSING'
+      redirectUri: redirectUri || 'MISSING',
+      note: 'Using GOOGLE_EMAIL_CLIENT_ID for Gmail API access'
     });
 
     this.oauth2Client = new google.auth.OAuth2(
@@ -28,19 +41,8 @@ export class GoogleOAuthService {
   private readonly SCOPES = [
     'https://www.googleapis.com/auth/calendar',
     'https://www.googleapis.com/auth/userinfo.email',
+    'https://www.googleapis.com/auth/gmail.send', // Required for sending emails
   ];
-
-  // TODO: Implement proper database storage for tenant OAuth tokens
-  // For now, using in-memory storage (this should be replaced with database storage)
-  // Key format: "tenantId:email" -> tokens
-  private tenantTokens = new Map<string, {
-    tokens: any;
-    grantId?: string; // Kept for backwards compatibility
-    userEmail: string;
-    tenantId: string;
-    // providerGrantId removed - not needed for Google Calendar API direct usage
-    connectedAt: Date;
-  }>();
 
   /**
    * Generate storage key for tenant-email combination
@@ -50,7 +52,7 @@ export class GoogleOAuthService {
   }
 
   /**
-   * Store OAuth tokens for a specific tenant-email combination
+   * Store OAuth tokens for a specific tenant-email combination in MongoDB
    */
   async storeTokensForTenant(tenantId: string, tokens: any, userEmail: string, grantId?: string) {
     const storageKey = this.getStorageKey(tenantId, userEmail);
@@ -60,29 +62,39 @@ export class GoogleOAuthService {
       userEmail,
       storageKey,
       tokensKeys: Object.keys(tokens),
-      hasAccessToken: !!tokens.accessToken,
-      hasRefreshToken: !!tokens.refreshToken,
-      hasAccess_token: !!tokens.access_token,
-      hasRefresh_token: !!tokens.refresh_token,
+      hasAccessToken: !!tokens.access_token,
+      hasRefreshToken: !!tokens.refresh_token,
     });
     
-    this.tenantTokens.set(storageKey, {
-      tokens,
+    const tokenData = {
+      tenantId,
+      userEmail,
+      accessToken: tokens.access_token,
+      refreshToken: tokens.refresh_token,
+      expiryDate: tokens.expiry_date,
+      scope: tokens.scope,
+      tokenType: tokens.token_type,
       grantId,
+      connectedAt: new Date(),
+      lastRefreshedAt: new Date(),
+    };
+    
+    // Save to MongoDB (upsert)
+    await this.googleOAuthTokenModel.findOneAndUpdate(
+      { tenantId, userEmail },
+      tokenData,
+      { upsert: true, new: true },
+    );
+    
+    // Also cache in memory for quick access
+    this.tokenCache.set(storageKey, {
+      tokens,
       userEmail,
       tenantId,
-      // providerGrantId removed - not needed for Google Calendar API
       connectedAt: new Date(),
     });
     
-    console.log(`🔐 Stored tokens for tenant ${tenantId} with provider ${userEmail}:`, {
-      storageKey,
-      hasAccessToken: !!tokens.accessToken,
-      hasRefreshToken: !!tokens.refreshToken,
-      hasAccess_token: !!tokens.access_token,
-      hasRefresh_token: !!tokens.refresh_token,
-      usingGoogleCalendarAPI: true, // Clear indication of current approach
-    });
+    console.log(`🔐 Stored tokens for tenant ${tenantId} with provider ${userEmail} in MongoDB`);
   }
 
   /**
@@ -128,54 +140,91 @@ export class GoogleOAuthService {
     console.log(`🔍 DEBUG - getStoredTokens called with:`, {
       tenantId,
       providerEmail,
-      totalStoredKeys: this.tenantTokens.size,
-      allKeys: Array.from(this.tenantTokens.keys()),
     });
 
+    // Try cache first
     if (providerEmail) {
       const storageKey = this.getStorageKey(tenantId, providerEmail);
-      const result = this.tenantTokens.get(storageKey);
-      
-      console.log(`🔍 DEBUG - Looking for specific provider:`, {
-        storageKey,
-        found: !!result,
-        resultKeys: result ? Object.keys(result) : null,
-        resultTokensKeys: result?.tokens ? Object.keys(result.tokens) : null,
-      });
-      
-      return result;
-    }
-    
-    // If no specific email provided, return first match for tenant
-    for (const [key, data] of this.tenantTokens.entries()) {
-      if (data.tenantId === tenantId) {
-        console.log(`🔍 DEBUG - Found general tenant match:`, {
-          key,
-          tenantId: data.tenantId,
-          userEmail: data.userEmail,
-          tokensKeys: data.tokens ? Object.keys(data.tokens) : null,
-        });
-        return data;
+      const cached = this.tokenCache.get(storageKey);
+      if (cached) {
+        console.log(`✅ Found in cache:`, storageKey);
+        return cached;
       }
     }
+
+    // Fetch from MongoDB
+    const query: any = { tenantId };
+    if (providerEmail) {
+      query.userEmail = providerEmail;
+    }
+
+    const tokenDoc = await this.googleOAuthTokenModel.findOne(query).exec();
     
-    console.log(`❌ DEBUG - No tokens found for tenant: ${tenantId}`);
-    return null;
+    if (!tokenDoc) {
+      console.log(`❌ DEBUG - No tokens found in MongoDB for tenant: ${tenantId}`);
+      return null;
+    }
+
+    console.log(`✅ Found tokens in MongoDB for ${tokenDoc.userEmail}`);
+    
+    // Build result and cache it
+    const result = {
+      tokens: {
+        access_token: tokenDoc.accessToken,
+        refresh_token: tokenDoc.refreshToken,
+        expiry_date: tokenDoc.expiryDate,
+        scope: tokenDoc.scope,
+        token_type: tokenDoc.tokenType,
+      },
+      userEmail: tokenDoc.userEmail,
+      tenantId: tokenDoc.tenantId,
+      connectedAt: tokenDoc.connectedAt,
+      grantId: tokenDoc.grantId,
+    };
+
+    // Cache it
+    const storageKey = this.getStorageKey(tenantId, tokenDoc.userEmail);
+    this.tokenCache.set(storageKey, result);
+
+    return result;
   }
 
   /**
    * Get all authenticated providers for a tenant
    */
   async getAuthenticatedProviders(tenantId: string): Promise<string[]> {
-    const providers: string[] = [];
-    
-    for (const [key, data] of this.tenantTokens.entries()) {
-      if (data.tenantId === tenantId) {
-        providers.push(data.userEmail);
-      }
-    }
-    
-    return providers;
+    // Query MongoDB for all tokens for this tenant
+    const tokenDocs = await this.googleOAuthTokenModel.find({ tenantId }).exec();
+    return tokenDocs.map(doc => doc.userEmail);
+  }
+
+  /**
+   * Find OAuth token by webhook channel ID
+   */
+  async findByWebhookChannel(channelId: string): Promise<GoogleOAuthToken | null> {
+    return this.googleOAuthTokenModel.findOne({ webhookChannelId: channelId }).exec();
+  }
+
+  /**
+   * Update webhook subscription info for a tenant
+   */
+  async updateWebhookSubscription(
+    tenantId: string,
+    userEmail: string,
+    webhookChannelId: string,
+    webhookResourceId: string,
+    webhookExpiration: Date,
+  ): Promise<void> {
+    await this.googleOAuthTokenModel.findOneAndUpdate(
+      { tenantId, userEmail },
+      {
+        $set: {
+          webhookChannelId,
+          webhookResourceId,
+          webhookExpiration,
+        },
+      },
+    ).exec();
   }
 
   /**
@@ -188,14 +237,6 @@ export class GoogleOAuthService {
     message: string;
   }> {
     try {
-      const tenantConfig = getTenantConfig(tenantId);
-      if (!tenantConfig) {
-        return {
-          isAuthenticated: false,
-          message: `Tenant '${tenantId}' not found in configuration`,
-        };
-      }
-
       if (providerEmail) {
         // Check specific provider
         const storedTokens = await this.getStoredTokens(tenantId, providerEmail);
@@ -219,7 +260,7 @@ export class GoogleOAuthService {
           return {
             isAuthenticated: false,
             authenticatedProviders: [],
-            message: `No providers authenticated for tenant '${tenantId}'. Authorized providers: ${tenantConfig.authorizedProviders.join(', ')}`,
+            message: `No providers authenticated for tenant '${tenantId}'.`,
           };
         }
 
@@ -269,25 +310,31 @@ export class GoogleOAuthService {
       
       const userEmail = userInfo.data.email;
 
-      // � AUTO-DETECT TENANT: Find which tenant(s) authorize this email
-      const authorizedTenants: string[] = [];
-      
-      // Check all tenants to see which ones authorize this email
-      const allTenantConfigs = Object.values(TENANT_CONFIG_MAP);
-      for (const tenantConfig of allTenantConfigs) {
-        if (isEmailAuthorizedForTenant(tenantConfig.tenantId, userEmail)) {
-          authorizedTenants.push(tenantConfig.tenantId);
-        }
-      }
+      // Query database to find which tenant(s) this email belongs to
+      const users = await this.userModel.find({ 
+        email: userEmail.toLowerCase() 
+      }).exec();
 
-      if (authorizedTenants.length === 0) {
+      if (users.length === 0) {
         throw new Error(
-          `Email '${userEmail}' is not authorized for any tenant. ` +
-          `Please contact your administrator to add this email to the authorized providers list.`
+          `Email '${userEmail}' is not registered in the system. ` +
+          `Please contact your administrator to create an account.`
         );
       }
 
-      // Use the first authorized tenant (or the requested one if it's in the list)
+      // Get list of tenants this user belongs to
+      const authorizedTenants = users
+        .filter(user => user.tenant)
+        .map(user => user.tenant);
+
+      if (authorizedTenants.length === 0) {
+        throw new Error(
+          `Email '${userEmail}' is not associated with any tenant. ` +
+          `Please contact your administrator.`
+        );
+      }
+
+      // Use the requested tenant if the user belongs to it, otherwise use the first one
       let actualTenant = authorizedTenants[0];
       if (authorizedTenants.includes(requestedTenant)) {
         actualTenant = requestedTenant;
@@ -298,13 +345,14 @@ export class GoogleOAuthService {
       // Store tokens under the detected tenant
       console.log(`🔗 Storing Google OAuth tokens for provider ${userEmail} in tenant ${actualTenant}`);
 
-      // Store tokens securely (you'll need to implement this)
+      // Store tokens securely
       await this.storeGoogleTokens(actualTenant, {
-        accessToken: tokens.access_token,
-        refreshToken: tokens.refresh_token,
-        expiryDate: tokens.expiry_date,
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token,
+        expiry_date: tokens.expiry_date,
+        scope: tokens.scope,
+        token_type: tokens.token_type,
         email: userEmail,
-        // providerGrantId removed - not needed for Google Calendar API
       });
 
       return {
@@ -312,7 +360,6 @@ export class GoogleOAuthService {
         connectedAt: new Date(),
         detectedTenant: actualTenant,
         authorizedTenants: authorizedTenants,
-        // grantId removed - using Google Calendar API directly
       };
     } catch (error) {
       throw new Error(`Failed to handle OAuth callback: ${error.message}`);
@@ -329,7 +376,7 @@ export class GoogleOAuthService {
       
       if (!storedAuth) {
         return {
-          isConnected: false,
+          connected: false,
           email: null,
         };
       }
@@ -338,12 +385,16 @@ export class GoogleOAuthService {
       const isValid = await this.validateTokens(storedAuth);
 
       return {
-        isConnected: isValid,
+        connected: isValid,
         email: storedAuth.email,
         connectedAt: storedAuth.connectedAt,
       };
     } catch (error) {
-      throw new Error(`Failed to get connection status: ${error.message}`);
+      console.error(`Failed to get connection status: ${error.message}`);
+      return {
+        connected: false,
+        email: null,
+      };
     }
   }
 
@@ -378,8 +429,8 @@ export class GoogleOAuthService {
     }
 
     const client = new google.auth.OAuth2(
-      this.configService.get<string>('GOOGLE_CLIENT_ID'),
-      this.configService.get<string>('GOOGLE_CLIENT_SECRET'),
+      this.configService.get<string>('GOOGLE_EMAIL_CLIENT_ID'),
+      this.configService.get<string>('GOOGLE_EMAIL_CLIENT_SECRET'),
       this.configService.get<string>('GOOGLE_REDIRECT_URI'),
     );
 
@@ -390,6 +441,69 @@ export class GoogleOAuthService {
     });
 
     return client;
+  }
+
+  /**
+   * Get authenticated Gmail API client for sending emails
+   * Uses stored OAuth tokens for the tenant
+   */
+  async getAuthenticatedGmailClient(tenantId: string): Promise<any> {
+    try {
+      console.log(`🔍 [getAuthenticatedGmailClient] Fetching tokens for tenant: ${tenantId}`);
+      
+      const storedAuth = await this.getStoredGoogleTokens(tenantId);
+      
+      if (!storedAuth) {
+        console.error(`❌ [getAuthenticatedGmailClient] No stored tokens found for tenant: ${tenantId}`);
+        console.warn(`⚠️  No Google account connected for tenant: ${tenantId}`);
+        return null;
+      }
+
+      console.log(`✅ [getAuthenticatedGmailClient] Tokens found for tenant: ${tenantId}`);
+      console.log(`   Email: ${storedAuth.email}`);
+      console.log(`   StoredAuth object:`, JSON.stringify(storedAuth, null, 2));
+
+      // Create OAuth2 client with stored credentials (using email OAuth client)
+      const client = new google.auth.OAuth2(
+        this.configService.get<string>('GOOGLE_EMAIL_CLIENT_ID'),
+        this.configService.get<string>('GOOGLE_EMAIL_CLIENT_SECRET'),
+        this.configService.get<string>('GOOGLE_REDIRECT_URI'),
+      );
+
+      // Google OAuth2 client expects snake_case property names
+      // storedAuth should already have access_token, refresh_token from getStoredTokens
+      const credentials = {
+        access_token: storedAuth.access_token,
+        refresh_token: storedAuth.refresh_token,
+        expiry_date: storedAuth.expiry_date,
+      };
+
+      console.log('🔑 [getAuthenticatedGmailClient] Credentials to set:');
+      console.log('   access_token:', credentials.access_token ? `${credentials.access_token.substring(0, 30)}...` : 'NULL/UNDEFINED');
+      console.log('   refresh_token:', credentials.refresh_token ? `${credentials.refresh_token.substring(0, 30)}...` : 'NULL/UNDEFINED');
+      console.log('   expiry_date:', credentials.expiry_date);
+      
+      if (!credentials.access_token || !credentials.refresh_token) {
+        console.error('❌ CRITICAL: Credentials are missing!');
+        console.error('   This means tokens were not stored correctly in MongoDB');
+        return null;
+      }
+
+      client.setCredentials(credentials);
+
+      console.log('✅ [getAuthenticatedGmailClient] OAuth2 client configured, creating Gmail client...');
+
+      // Return Gmail API client
+      const gmailClient = google.gmail({ version: 'v1', auth: client });
+      
+      console.log('✅ [getAuthenticatedGmailClient] Gmail client created successfully');
+      
+      return gmailClient;
+    } catch (error) {
+      console.error(`❌ Failed to get Gmail client for tenant ${tenantId}:`, error.message);
+      console.error('   Stack:', error.stack);
+      return null;
+    }
   }
 
   // TODO: Implement these methods with your database
@@ -410,24 +524,46 @@ export class GoogleOAuthService {
   }
 
   private async getStoredGoogleTokens(tenantId: string): Promise<any> {
+    console.log(`🔍 [getStoredGoogleTokens] Looking for tokens for tenant: ${tenantId}`);
+    
     // Retrieve using our new token storage system
     const storedData = await this.getStoredTokens(tenantId);
     if (!storedData) {
-      console.log(`❌ No stored Google tokens found for tenant: ${tenantId}`);
+      console.error(`❌ [getStoredGoogleTokens] No stored tokens found for tenant: ${tenantId}`);
+      console.error(`   → Please connect Google account in Settings tab`);
       return null;
     }
     
-    console.log(`✅ Retrieved Google tokens for tenant: ${tenantId}`);
-    return {
-      ...storedData.tokens,
+    console.log(`✅ [getStoredGoogleTokens] Retrieved tokens for tenant: ${tenantId}`);
+    console.log(`   Email: ${storedData.userEmail}`);
+    console.log(`   Tokens object keys:`, Object.keys(storedData.tokens || {}));
+    
+    // Return tokens in both formats for compatibility
+    const result = {
+      ...storedData.tokens,  // This has access_token, refresh_token (underscore)
       tenantId,
       email: storedData.userEmail,
+      connectedAt: storedData.connectedAt,
     };
+    
+    console.log(`   Result keys:`, Object.keys(result));
+    console.log(`   Has access_token: ${!!result.access_token}`);
+    console.log(`   Has refresh_token: ${!!result.refresh_token}`);
+    
+    return result;
   }
 
   private async removeStoredGoogleTokens(tenantId: string): Promise<void> {
-    // Remove using our new token storage system
-    this.tenantTokens.delete(tenantId);
+    // Remove from MongoDB
+    await this.googleOAuthTokenModel.deleteMany({ tenantId }).exec();
+    
+    // Clear cache
+    for (const [key, value] of this.tokenCache.entries()) {
+      if (value.tenantId === tenantId) {
+        this.tokenCache.delete(key);
+      }
+    }
+    
     console.log(`🗑️ Removed Google tokens for tenant: ${tenantId}`);
   }
 
@@ -439,8 +575,8 @@ export class GoogleOAuthService {
         // Token is expired, try to refresh
         if (storedAuth.refreshToken) {
           const client = new google.auth.OAuth2(
-            this.configService.get<string>('GOOGLE_CLIENT_ID'),
-            this.configService.get<string>('GOOGLE_CLIENT_SECRET'),
+            this.configService.get<string>('GOOGLE_EMAIL_CLIENT_ID'),
+            this.configService.get<string>('GOOGLE_EMAIL_CLIENT_SECRET'),
             this.configService.get<string>('GOOGLE_REDIRECT_URI'),
           );
           

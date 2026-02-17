@@ -44,7 +44,6 @@ import { TenantModule } from '../tenant/tenant.module';
     SessionService,
     EncryptionService,
     AvailabilityService,
-    MeetingService,
     NylasService,
   ],
 })

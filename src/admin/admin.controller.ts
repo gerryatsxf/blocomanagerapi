@@ -4,16 +4,27 @@ import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SuperAdminGuard } from './guards/super-admin.guard';
+import { AdminOrTenantAdminGuard } from './guards/admin-or-tenant-admin.guard';
 import { VpnOnlyGuard } from './guards/vpn-only.guard';
 import { AdminService } from './admin.service';
 import { UserRole } from '../users/entities/user.entity';
 import { RequestSuperAdminDto, GrantSuperAdminDto } from './dto/super-admin-grant.dto';
+import { BulkDeleteUsersDto } from './dto/bulk-delete-users.dto';
+import { CreateUserInviteDto } from './dto/create-user-invite.dto';
+import { CreateTenantDto } from './dto/create-tenant.dto';
+import { UpdateTenantDto } from './dto/update-tenant.dto';
+import { ProductService } from '../product/product.service';
+import { CreateProductDto } from '../product/dto/create-product.dto';
+import { UpdateProductDto } from '../product/dto/update-product.dto';
 
 @ApiTags('Admin')
 @Controller('admin')
 @UseGuards(VpnOnlyGuard) // All admin routes require VPN access
 export class AdminController {
-  constructor(private readonly adminService: AdminService) {}
+  constructor(
+    private readonly adminService: AdminService,
+    private readonly productService: ProductService,
+  ) {}
 
   // ==================== SUPER ADMIN GRANT (NO AUTH) ====================
 
@@ -91,13 +102,55 @@ export class AdminController {
   }
 
   @Delete('users/:userId')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete user account' })
   async deleteUser(@Param('userId') userId: string) {
     return this.adminService.deleteUser(userId);
   }
 
+  @Post('users/bulk-delete')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Bulk delete multiple users',
+    description: 'Delete multiple users at once. Super admin accounts will be skipped.',
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Returns summary of deleted, skipped, and failed deletions' 
+  })
+  async bulkDeleteUsers(@Body() dto: BulkDeleteUsersDto) {
+    return this.adminService.bulkDeleteUsers(dto.userIds);
+  }
+
+  @Post('users/invite')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ 
+    summary: 'Create new user and send invitation email',
+    description: 'Creates a new user account and sends them an invitation email with their temporary credentials.',
+  })
+  @ApiResponse({ 
+    status: 201, 
+    description: 'User created successfully and invitation email sent' 
+  })
+  async createUserWithInvite(@Body() dto: CreateUserInviteDto) {
+    return this.adminService.createUserWithInvite(
+      dto.email,
+      dto.temporaryPassword,
+      dto.firstName,
+      dto.lastName,
+      dto.role || UserRole.USER,
+    );
+  }
+
   @Get('users/:userId/activity')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Get user activity and sessions' })
   async getUserActivity(@Param('userId') userId: string) {
     return this.adminService.getUserActivity(userId);
@@ -117,26 +170,238 @@ export class AdminController {
     return this.adminService.getTenantData(tenantId);
   }
 
-  // ==================== SUBSCRIPTION MANAGEMENT ====================
+  @Post('tenants')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ 
+    summary: 'Create new tenant (Super Admin only)',
+    description: 'Creates a new tenant with a unique ID and domain.',
+  })
+  @ApiResponse({ 
+    status: 201, 
+    description: 'Tenant created successfully' 
+  })
+  @ApiResponse({ 
+    status: 409, 
+    description: 'Tenant ID or domain already exists' 
+  })
+  async createTenant(@Body() dto: CreateTenantDto) {
+    return this.adminService.createTenant(dto);
+  }
 
-  @Get('subscriptions')
-  @ApiOperation({ summary: 'Get all subscriptions' })
-  async getAllSubscriptions(
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
+  @Patch('tenants/:tenantId')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Update tenant details (Super Admin only)',
+    description: 'Updates tenant name and/or description. Tenant ID and domain cannot be changed.',
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Tenant updated successfully' 
+  })
+  @ApiResponse({ 
+    status: 404, 
+    description: 'Tenant not found' 
+  })
+  async updateTenant(
+    @Param('tenantId') tenantId: string,
+    @Body() dto: UpdateTenantDto,
   ) {
-    return this.adminService.getAllSubscriptions(
-      page ? parseInt(page) : 1,
-      limit ? parseInt(limit) : 50,
+    return this.adminService.updateTenant(tenantId, dto);
+  }
+
+  @Delete('tenants/:tenantId/undeploy')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Undeploy tenant frontend' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Tenant frontend undeployed successfully' 
+  })
+  async undeployTenant(@Param('tenantId') tenantId: string) {
+    return this.adminService.undeployTenant(tenantId);
+  }
+
+  @Get('tenants/:tenantId/admins')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get all tenant admin users for a tenant' })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'List of tenant admin users' 
+  })
+  async getTenantAdmins(@Param('tenantId') tenantId: string) {
+    return this.adminService.getTenantAdmins(tenantId);
+  }
+
+  @Post('tenants/:tenantId/admins/:userId')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Assign a user as tenant admin',
+    description: 'Sets user role to tenantAdmin and assigns them to the tenant. Validates that user is not already a tenant admin of another tenant.',
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'User assigned as tenant admin successfully' 
+  })
+  @ApiResponse({ 
+    status: 409, 
+    description: 'User is already a tenant admin of another tenant' 
+  })
+  async assignTenantAdmin(
+    @Param('tenantId') tenantId: string,
+    @Param('userId') userId: string,
+  ) {
+    return this.adminService.assignTenantAdmin(tenantId, userId);
+  }
+
+  @Delete('tenants/:tenantId/admins/:userId')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ 
+    summary: 'Remove a user from tenant admin role',
+    description: 'Sets user role back to regular user and clears their tenant association.',
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'User removed from tenant admin successfully' 
+  })
+  async removeTenantAdmin(
+    @Param('tenantId') tenantId: string,
+    @Param('userId') userId: string,
+  ) {
+    return this.adminService.removeTenantAdmin(tenantId, userId);
+  }
+
+  // ==================== STORAGE PROVIDER CONFIGURATION ====================
+
+  @Patch('tenants/:tenantId/storage-provider')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update storage provider for tenant (Super Admin only)' })
+  async updateStorageProvider(
+    @Param('tenantId') tenantId: string,
+    @Body() body: { storageProvider: string; storageConfig?: Record<string, any> },
+  ) {
+    return this.adminService.updateStorageProvider(
+      tenantId,
+      body.storageProvider,
+      body.storageConfig,
     );
   }
 
-  @Patch('subscriptions/:userId')
-  @ApiOperation({ summary: 'Update user subscription' })
-  async updateSubscription(
-    @Param('userId') userId: string,
-    @Body('planId') planId: string,
+  // ==================== PAYMENT PROVIDER CONFIGURATION ====================
+
+  @Post('tenants/:tenantId/payment-provider')
+  @UseGuards(JwtAuthGuard, AdminOrTenantAdminGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Save payment provider configuration (Admin or Tenant Admin)' })
+  async savePaymentProviderConfig(
+    @Param('tenantId') tenantId: string,
+    @Body() configData: any,
+    @Req() request: Request,
   ) {
-    return this.adminService.updateSubscription(userId, planId);
+    // Validate tenant access
+    const adminUser = request['adminUser'];
+    if (adminUser.role !== UserRole.SUPER_ADMIN && adminUser.tenant !== tenantId) {
+      return {
+        success: false,
+        message: 'Access denied: Cannot configure payment provider for another tenant',
+      };
+    }
+
+    return this.adminService.savePaymentProviderConfig(tenantId, configData);
+  }
+
+  @Get('tenants/:tenantId/payment-providers')
+  @UseGuards(JwtAuthGuard, AdminOrTenantAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get payment provider configurations (Admin or Tenant Admin)' })
+  async getPaymentProviderConfigs(
+    @Param('tenantId') tenantId: string,
+    @Req() request: Request,
+  ) {
+    // Validate tenant access
+    const adminUser = request['adminUser'];
+    if (adminUser.role !== UserRole.SUPER_ADMIN && adminUser.tenant !== tenantId) {
+      return {
+        success: false,
+        message: 'Access denied: Cannot view payment providers for another tenant',
+      };
+    }
+
+    return this.adminService.getPaymentProviderConfigs(tenantId);
+  }
+
+  // ==================== PRODUCT MANAGEMENT ====================
+
+  @Post('products')
+  @UseGuards(JwtAuthGuard, AdminOrTenantAdminGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create new product (Admin or Tenant Admin)' })
+  async createProduct(@Body() createProductDto: CreateProductDto, @Req() request: Request) {
+    // Get tenant from authenticated user (attached by guard)
+    const tenant = request['adminUser']?.tenant || 'blocomanager';
+    return this.productService.create(createProductDto, tenant);
+  }
+
+  @Get('products')
+  @UseGuards(JwtAuthGuard, AdminOrTenantAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get all products (Admin or Tenant Admin)' })
+  async getAllProducts(@Req() request: Request) {
+    const adminUser = request['adminUser'];
+    
+    // Super admins see all products, tenant admins see only their tenant's products
+    if (adminUser.role === UserRole.SUPER_ADMIN) {
+      return this.productService.findAllForAdmin();
+    } else {
+      return this.productService.findByTenant(adminUser.tenant);
+    }
+  }
+
+  @Get('products/:id')
+  @UseGuards(JwtAuthGuard, AdminOrTenantAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get product by ID (Admin or Tenant Admin)' })
+  async getProduct(@Param('id') id: string) {
+    return this.productService.findOne(id);
+  }
+
+  @Patch('products/:id')
+  @UseGuards(JwtAuthGuard, AdminOrTenantAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update product (Admin or Tenant Admin)' })
+  async updateProduct(
+    @Param('id') id: string,
+    @Body() updateProductDto: UpdateProductDto,
+  ) {
+    return this.productService.update(id, updateProductDto);
+  }
+
+  @Patch('products/:id/toggle-active')
+  @UseGuards(JwtAuthGuard, AdminOrTenantAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Toggle product active status (Admin or Tenant Admin)' })
+  async toggleProductActive(@Param('id') id: string) {
+    return this.productService.toggleActive(id);
+  }
+
+  @Delete('products/:id')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Permanently delete product (Super Admin only)' })
+  async deleteProduct(@Param('id') id: string) {
+    return this.productService.hardDelete(id);
   }
 }

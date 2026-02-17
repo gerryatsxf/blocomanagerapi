@@ -1,65 +1,68 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
-import { HttpService } from '@nestjs/axios';
-import { Observable, catchError, firstValueFrom } from 'rxjs';
-import { AxiosError } from 'axios';
-import { GetProductListResponseDto } from './dto/get-product-list-response.dto';
-import { plainToInstance } from 'class-transformer';
-import { ProductListItemDto } from './dto/product-list-item.dto';
-import { GetProductResponseDto } from './dto/get-product-response.dto';
+import { Product, ProductDocument } from './entities/product.entity';
+
 @Injectable()
 export class ProductService {
-  constructor(private readonly httpService: HttpService) {}
+  constructor(
+    @InjectModel(Product.name)
+    private readonly productModel: Model<ProductDocument>,
+  ) {}
 
-  async findAll() {
-    const headersRequest = {
-      'Content-Type': 'application/json', // afaik this one is not needed
-      Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`,
-    };
-    const { data } = await firstValueFrom(
-      this.httpService
-        .get(`${process.env.STRIPE_API_URL}/v1/products`, {
-          headers: headersRequest,
-        })
-        .pipe(
-          catchError((error: AxiosError) => {
-            console.error(error.response.data);
-            throw 'An error happened!';
-          }),
-        ),
-    );
-    const response = new GetProductListResponseDto();
-    response.products = data.data.map((item) =>
-      ProductListItemDto.parseProduct(item),
-    );
-
-    return response;
+  async create(createProductDto: CreateProductDto, tenant: string = 'blocomanager'): Promise<Product> {
+    const createdProduct = new this.productModel({
+      ...createProductDto,
+      currency: 'MXN',
+      tenant: createProductDto.tenant || tenant,
+    });
+    return createdProduct.save();
   }
 
-  async findOne(id: string) {
-    const headersRequest = {
-      'Content-Type': 'application/json', // afaik this one is not needed
-      Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`,
-    };
-    const { data } = await firstValueFrom(
-      this.httpService
-        .get(`${process.env.STRIPE_API_URL}/v1/products/${id}`, {
-          headers: headersRequest,
-        })
-        .pipe(
-          catchError((error: AxiosError) => {
-            console.error(error.response.data);
-            throw 'An error happened!';
-          }),
-        ),
-    );
+  async findAll(): Promise<Product[]> {
+    return this.productModel.find({ active: true }).exec();
+  }
 
-    const item = plainToInstance(ProductListItemDto, data);
-    const product = ProductListItemDto.parseProduct(item);
-    const response = new GetProductResponseDto();
-    response.product = product;
+  async findAllForAdmin(): Promise<Product[]> {
+    return this.productModel.find().exec();
+  }
 
-    return response;
+  async findByTenant(tenant: string): Promise<Product[]> {
+    return this.productModel.find({ tenant }).exec();
+  }
+
+  async findOne(id: string): Promise<Product> {
+    const product = await this.productModel.findById(id).exec();
+    if (!product) {
+      throw new NotFoundException(`Product with ID ${id} not found`);
+    }
+    return product;
+  }
+
+  async update(id: string, updateProductDto: UpdateProductDto): Promise<Product> {
+    const updatedProduct = await this.productModel
+      .findByIdAndUpdate(id, updateProductDto, { new: true })
+      .exec();
+    if (!updatedProduct) {
+      throw new NotFoundException(`Product with ID ${id} not found`);
+    }
+    return updatedProduct;
+  }
+
+  async toggleActive(id: string): Promise<Product> {
+    const product = await this.findOne(id);
+    product.active = !product.active;
+    return this.productModel
+      .findByIdAndUpdate(id, { active: product.active }, { new: true })
+      .exec();
+  }
+
+  async hardDelete(id: string): Promise<void> {
+    const result = await this.productModel.findByIdAndDelete(id).exec();
+    if (!result) {
+      throw new NotFoundException(`Product with ID ${id} not found`);
+    }
   }
 }

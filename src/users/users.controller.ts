@@ -106,6 +106,8 @@ if (data.data?.user) {
         email: user.email,
         firstName: user.firstName,
         lastName: user.lastName,
+        role: user.role,
+        tenant: user.tenant,
       };
       
       const response = new GetProfileResponseDto();

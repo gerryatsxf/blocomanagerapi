@@ -16,7 +16,14 @@ if (!process.env.DOCKER_ENV) {
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     rawBody: true,
-    cors: true,
+  });
+
+  // Enable CORS with permissive settings
+  app.enableCors({
+    origin: true,
+    credentials: true,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    allowedHeaders: '*',
   });
 
   // Get ConfigService for VPN IP checking
@@ -25,6 +32,11 @@ async function bootstrap() {
   // Serve static files for admin panel
   app.useStaticAssets(join(__dirname, '..', 'public'), {
     prefix: '/public/',
+  });
+
+  // Serve static files for tenant assets (images, etc.)
+  app.useStaticAssets(join(__dirname, '..', 'public', 'tenant', 'assets'), {
+    prefix: '/tenant/assets/',
   });
 
   const config = new DocumentBuilder()
@@ -105,5 +117,6 @@ async function bootstrap() {
   await app.listen(3002);
   console.log(`Application is running on: ${await app.getUrl()}`);
   console.log(`Admin panel available at: ${await app.getUrl()}/public/admin/index.html`);
+  console.log(`Tenant panel available at: ${await app.getUrl()}/public/tenant/index.html`);
 }
 bootstrap();

@@ -7,6 +7,7 @@ import { GoogleCalendarService } from './google-calendar.service';
 import { ScheduleEventParamsDto } from '../calendar/dto/schedule-event-params.dto';
 import { getTenantConfig, getAuthorizedProviders } from './config/tenant-email.config';
 import { Tenant } from './decorators/tenant.decorator';
+import { WebhookSubscriptionService } from '../calendar/services/webhook-subscription.service';
 
 @Controller('api/admin/auth/google')
 @UseGuards(TenantGuard)
@@ -16,6 +17,7 @@ export class GoogleOAuthController {
   constructor(
     private readonly googleOAuthService: GoogleOAuthService,
     private readonly googleCalendarService: GoogleCalendarService,
+    private readonly webhookSubscriptionService: WebhookSubscriptionService,
   ) {}
 
   /**
@@ -54,10 +56,8 @@ export class GoogleOAuthController {
   ) {
     try {
       if (!code) {
-        return res.status(400).json({
-          success: false,
-          message: 'Authorization code not provided',
-        });
+        this.logger.error('No authorization code provided');
+        return res.redirect('/public/tenant/index.html?view=calendar&error=' + encodeURIComponent('Authorization code not provided'));
       }
 
       // Extract tenant from state parameter
@@ -65,22 +65,31 @@ export class GoogleOAuthController {
       
       const result = await this.googleOAuthService.handleCallback(code, tenantId);
       
-      return res.json({
-        success: true,
-        message: 'Google account connected successfully',
-        data: {
-          email: result.email,
-          connectedAt: result.connectedAt,
-          detectedTenant: result.detectedTenant,
-          authorizedTenants: result.authorizedTenants,
-        },
-      });
+      this.logger.log(`Google account connected successfully: ${result.email}`);
+      
+      // Register webhook subscription for calendar changes
+      try {
+        const webhookResult = await this.webhookSubscriptionService.registerGoogleWebhook(
+          result.detectedTenant || tenantId,
+          result.email,
+        );
+        
+        if (webhookResult.success) {
+          this.logger.log(`Webhook registered successfully, expires: ${webhookResult.expiration}`);
+        } else {
+          this.logger.warn(`Failed to register webhook: ${webhookResult.message}`);
+        }
+      } catch (webhookError) {
+        this.logger.error(`Error registering webhook: ${webhookError.message}`);
+        // Don't fail the OAuth connection if webhook registration fails
+      }
+      
+      // Redirect back to tenant admin panel live site page with success message
+      return res.redirect('/public/tenant/index.html?view=calendar&success=' + encodeURIComponent('Google account connected successfully'));
+      
     } catch (error) {
-      return res.status(500).json({
-        success: false,
-        message: 'Error processing Google OAuth callback',
-        error: error.message,
-      });
+      this.logger.error(`Error in Google OAuth callback: ${error.message}`);
+      return res.redirect('/public/tenant/index.html?view=calendar&error=' + encodeURIComponent(error.message));
     }
   }
 

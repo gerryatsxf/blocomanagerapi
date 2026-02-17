@@ -4,6 +4,20 @@ export interface TenantConfig {
   name: string;
   description?: string;
   settings?: TenantSettings;
+  storageProvider?: string; // 'local', 'aws_s3', 'azure_blob', 'google_cloud'
+  storageConfig?: Record<string, any>; // Provider-specific storage configuration
+  // Deployment information
+  frontendUrl?: string;
+  deploymentStatus?: 'pending' | 'provisioning' | 'deployed' | 'failed' | 'undeployed';
+  deployedAt?: string;
+  containerId?: string;
+  deploymentId?: string;
+}
+
+export interface PaymentProviderConfig {
+  provider: string;
+  enabled: boolean;
+  config: Record<string, any>; // Flexible config for any provider
 }
 
 export interface TenantSettings {
@@ -35,4 +49,7 @@ export interface TenantSettings {
     taxRate?: number;
     defaultPricing?: number;
   };
+
+  // Payment provider configurations
+  paymentProviders?: PaymentProviderConfig[];
 }

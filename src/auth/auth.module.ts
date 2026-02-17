@@ -4,6 +4,8 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller';
+import { GoogleAuthController } from './google-auth.controller';
+import { GoogleAuthService } from './google-auth.service';
 import { EncryptionModule } from '../encryption/encryption.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { EncryptionService } from '../encryption/encryption.service';
@@ -14,7 +16,6 @@ import { UsersModule } from '../users/users.module';
 import { PasswordResetModule } from '../password-reset/password-reset.module';
 import { NotificationModule } from '../notification/notification.module';
 import { EmailChangeModule } from '../email-change/email-change.module';
-import { SubscriptionModule } from '../subscription/subscription.module';
 
 const jwtFactory = (configService: ConfigService) => ({
   secret: configService.get<string>(JWT_SECRET),
@@ -40,10 +41,9 @@ const options = {
     PasswordResetModule,
     NotificationModule,
     EmailChangeModule,
-    SubscriptionModule,
   ],
-  providers: [AuthService, JwtStrategy, EncryptionService, ConfigService],
-  exports: [AuthService],
-  controllers: [AuthController],
+  providers: [AuthService, GoogleAuthService, JwtStrategy, EncryptionService, ConfigService],
+  exports: [AuthService, GoogleAuthService],
+  controllers: [AuthController, GoogleAuthController],
 })
 export class AuthModule {}

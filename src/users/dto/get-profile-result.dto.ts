@@ -20,6 +20,20 @@ export class UserProfileDto {
     required: false
   })
   lastName?: string;
+
+  @ApiProperty({
+    example: 'user',
+    description: 'User role',
+    required: false
+  })
+  role?: string;
+
+  @ApiProperty({
+    example: 'tenant123',
+    description: 'Tenant ID',
+    required: false
+  })
+  tenant?: string;
 }
 
 export class GetProfileResultDto {

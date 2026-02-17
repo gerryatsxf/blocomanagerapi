@@ -1,15 +1,29 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
 import { TenantService } from './tenant.service';
 import { TenantGuard } from './guards';
 import { GoogleOAuthService } from './google-oauth.service';
 import { GoogleOAuthController } from './google-oauth.controller';
 import { GoogleCalendarService } from './google-calendar.service';
-// NOTE: NylasModule and CalendarModule kept available for future use but not imported here
+import { GoogleOAuthToken, GoogleOAuthTokenSchema } from './entities/google-oauth-token.entity';
+import { ProvisioningService } from './provisioning.service';
+import { TenantPublicController } from './tenant-public.controller';
+import { ProductModule } from '../product/product.module';
+import { CalendarModule } from '../calendar/calendar.module';
+import { User, UserSchema } from '../users/entities/user.entity';
+// NOTE: NylasModule kept available for future use but not imported here
 
 @Module({
-  imports: [], // Removed Nylas and Calendar modules - using Google Calendar API directly
-  controllers: [GoogleOAuthController],
-  providers: [TenantService, TenantGuard, GoogleOAuthService, GoogleCalendarService],
-  exports: [TenantService, TenantGuard, GoogleOAuthService, GoogleCalendarService],
+  imports: [
+    MongooseModule.forFeature([
+      { name: GoogleOAuthToken.name, schema: GoogleOAuthTokenSchema },
+      { name: User.name, schema: UserSchema },
+    ]),
+    ProductModule,
+    forwardRef(() => CalendarModule),
+  ],
+  controllers: [GoogleOAuthController, TenantPublicController],
+  providers: [TenantService, TenantGuard, GoogleOAuthService, GoogleCalendarService, ProvisioningService],
+  exports: [TenantService, TenantGuard, GoogleOAuthService, GoogleCalendarService, ProvisioningService],
 })
 export class TenantModule {}

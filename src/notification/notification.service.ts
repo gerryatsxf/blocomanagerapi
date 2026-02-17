@@ -1,63 +1,20 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SendNotificationRequestDto } from './dto/send-notification-request.dto';
 import { NylasService } from '../nylas/nylas.service';
+import { GoogleOAuthService } from '../tenant/google-oauth.service';
 import { google } from 'googleapis';
 
 @Injectable()
 export class NotificationService {
-  private gmail;
-  private oauth2Client;
-
   constructor(
     private configService: ConfigService,
     private nylasService: NylasService,
+    @Inject(forwardRef(() => GoogleOAuthService))
+    private googleOAuthService: GoogleOAuthService,
   ) {
-    // Initialize Google OAuth2 client for Gmail API
-    this.initializeGoogleAuth();
-  }
-
-  /**
-   * Initialize Google OAuth2 client
-   */
-  private initializeGoogleAuth() {
-    try {
-      const clientId = this.configService.get<string>('GOOGLE_EMAIL_CLIENT_ID');
-      const clientSecret = this.configService.get<string>('GOOGLE_EMAIL_CLIENT_SECRET');
-      const redirectUri = this.configService.get<string>('GOOGLE_EMAIL_REDIRECT_URI');
-      const refreshToken = this.configService.get<string>('GOOGLE_EMAIL_REFRESH_TOKEN');
-
-      if (!clientId || !clientSecret) {
-        console.warn('⚠️  Google OAuth credentials not configured. Email sending will use console logging only.');
-        console.warn('   See GMAIL_SETUP.md for configuration instructions.');
-        return;
-      }
-
-      this.oauth2Client = new google.auth.OAuth2(
-        clientId,
-        clientSecret,
-        redirectUri,
-      );
-
-      if (refreshToken) {
-        // Set the refresh token - Google will automatically refresh access tokens
-        this.oauth2Client.setCredentials({
-          refresh_token: refreshToken,
-        });
-        
-        this.gmail = google.gmail({ version: 'v1', auth: this.oauth2Client });
-        
-        console.log('✅ Google Gmail API initialized successfully');
-        console.log('   Email notifications will be sent via Gmail API');
-      } else {
-        console.warn('⚠️  GOOGLE_EMAIL_REFRESH_TOKEN not configured.');
-        console.warn('   Run: node scripts/generate-gmail-token.js');
-        console.warn('   Email sending will use console logging until configured.');
-      }
-    } catch (error) {
-      console.error('❌ Failed to initialize Google Gmail API:', error.message);
-      console.error('   Email sending will fall back to console logging.');
-    }
+    console.log('✅ NotificationService initialized with GoogleOAuthService');
+    console.log('   Emails will be sent using OAuth tokens from Settings tab');
   }
 
   async sendNotification(
@@ -99,6 +56,9 @@ export class NotificationService {
    * Send email using Gmail API
    * @private
    */
+  /**
+   * Send email using Gmail API via GoogleOAuthService
+   */
   private async sendGmailEmail(
     to: string,
     subject: string,
@@ -106,10 +66,24 @@ export class NotificationService {
     textBody: string,
   ): Promise<boolean> {
     try {
-      if (!this.gmail || !this.oauth2Client) {
-        console.warn('Gmail API not configured, falling back to console logging');
+      // Default tenant for system emails (use 'blocomanager' as default)
+      const tenantId = 'blocomanager';
+      
+      console.log(`📧 [sendGmailEmail] Attempting to send email to: ${to}`);
+      console.log(`📧 [sendGmailEmail] Tenant ID: ${tenantId}`);
+      console.log(`📧 [sendGmailEmail] Subject: ${subject}`);
+      
+      // Get authenticated Gmail client from GoogleOAuthService
+      const gmailClient = await this.googleOAuthService.getAuthenticatedGmailClient(tenantId);
+      
+      if (!gmailClient) {
+        console.error('❌ [sendGmailEmail] Gmail client is NULL');
+        console.warn('⚠️  Gmail API not configured. Please connect Google account in Settings tab.');
+        console.warn('   Email will be logged to console instead.');
         return false;
       }
+
+      console.log('✅ [sendGmailEmail] Gmail client obtained successfully');
 
       // Create email in RFC 2822 format
       const utf8Subject = `=?utf-8?B?${Buffer.from(subject).toString('base64')}?=`;
@@ -130,18 +104,23 @@ export class NotificationService {
         .replace(/\//g, '_')
         .replace(/=+$/, '');
 
+      console.log('📧 [sendGmailEmail] Message encoded, sending via Gmail API...');
+
       // Send email
-      await this.gmail.users.messages.send({
+      await gmailClient.users.messages.send({
         userId: 'me',
         requestBody: {
           raw: encodedMessage,
         },
       });
 
-      console.log(`✅ Email sent successfully to ${to}`);
+      console.log(`✅ [sendGmailEmail] Email sent successfully to ${to}`);
       return true;
     } catch (error) {
-      console.error('Failed to send email via Gmail API:', error.message);
+      console.error('❌ Failed to send email via Gmail API:', error.message);
+      if (error.message?.includes('invalid_grant') || error.message?.includes('Token has been expired')) {
+        console.error('   → Google OAuth token expired or invalid. Please reconnect in Settings tab.');
+      }
       return false;
     }
   }
@@ -422,6 +401,118 @@ The BlocoManager Team
     if (!sent) {
       console.log('='.repeat(80));
       console.log('PASSWORD RESET CONFIRMATION (Console Fallback)');
+      console.log('='.repeat(80));
+      console.log(`To: ${email}`);
+      console.log(`Name: ${displayName}`);
+      console.log('='.repeat(80));
+      console.log(textBody);
+      console.log('='.repeat(80));
+    }
+  }
+
+  /**
+   * Send user invitation email with temporary credentials
+   */
+  async sendUserInviteEmail(
+    email: string,
+    temporaryPassword: string,
+    firstName?: string,
+  ): Promise<void> {
+    const displayName = firstName || 'there';
+    const frontendUrl = this.configService.get<string>(
+      'FRONTEND_URL',
+      'http://localhost:3000',
+    );
+
+    const subject = 'Welcome to BlocoManager - Your Account is Ready!';
+    
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background-color: #2563eb; color: white; padding: 20px; text-align: center; }
+    .content { background-color: #f9f9f9; padding: 30px; border: 1px solid #ddd; }
+    .button { display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 4px; margin: 20px 0; }
+    .credentials { background-color: #fff; border: 2px solid #2563eb; border-radius: 8px; padding: 20px; margin: 20px 0; }
+    .credential-item { margin: 10px 0; }
+    .credential-label { font-weight: bold; color: #2563eb; }
+    .credential-value { font-family: monospace; background: #f0f0f0; padding: 8px 12px; border-radius: 4px; display: inline-block; margin-top: 5px; }
+    .warning { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; }
+    .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎉 Welcome to BlocoManager!</h1>
+    </div>
+    <div class="content">
+      <p>Hi ${displayName},</p>
+      
+      <p>Your BlocoManager account has been created! You can now access the platform using the credentials below.</p>
+      
+      <div class="credentials">
+        <div class="credential-item">
+          <div class="credential-label">Email:</div>
+          <div class="credential-value">${email}</div>
+        </div>
+        <div class="credential-item">
+          <div class="credential-label">Temporary Password:</div>
+          <div class="credential-value">${temporaryPassword}</div>
+        </div>
+      </div>
+      
+      <div class="warning">
+        <strong>⚠️ Important:</strong> For security reasons, please change your password after logging in for the first time.
+      </div>
+      
+      <p style="text-align: center;">
+        <a href="${frontendUrl}/login" class="button">Login to BlocoManager</a>
+      </p>
+      
+      <p>If you have any questions or need assistance, feel free to reach out to our support team.</p>
+      
+      <p>Best regards,<br>The BlocoManager Team</p>
+    </div>
+    <div class="footer">
+      <p>© ${new Date().getFullYear()} BlocoManager. All rights reserved.</p>
+      <p>This is an automated message, please do not reply to this email.</p>
+    </div>
+  </div>
+</body>
+</html>
+    `;
+
+    const textBody = `
+Hi ${displayName},
+
+Welcome to BlocoManager! Your account has been created.
+
+LOGIN CREDENTIALS:
+Email: ${email}
+Temporary Password: ${temporaryPassword}
+
+⚠️ IMPORTANT: Please change your password after logging in for the first time.
+
+Login at: ${frontendUrl}/login
+
+If you have any questions, please contact our support team.
+
+Best regards,
+The BlocoManager Team
+    `;
+
+    // Try to send via Gmail API
+    const sent = await this.sendGmailEmail(email, subject, htmlBody, textBody);
+
+    // If Gmail API fails, fall back to console logging
+    if (!sent) {
+      console.log('='.repeat(80));
+      console.log('USER INVITATION EMAIL (Console Fallback)');
       console.log('='.repeat(80));
       console.log(`To: ${email}`);
       console.log(`Name: ${displayName}`);

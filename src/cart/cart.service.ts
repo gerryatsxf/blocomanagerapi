@@ -11,7 +11,6 @@ import { ISession } from 'src/session/entities/session.interface';
 import { ICartLineItem } from './entities/cart-line-item.interface';
 import { CreateCartLineItemRequestDto } from './dto/create-cart-line-request.dto';
 import { ProductService } from 'src/product/product.service';
-import { PriceService } from './price.service';
 
 @Injectable()
 export class CartService {
@@ -20,7 +19,6 @@ export class CartService {
     private readonly cartLineItemModel: Model<ICartLineItem>,
     @InjectModel('Cart') private readonly cartModel: Model<ICart>,
     private readonly productService: ProductService,
-    private readonly priceService: PriceService,
   ) {}
 
   async createCartInstance(sessionInfo) {
@@ -67,11 +65,8 @@ export class CartService {
         throw UnprocessableEntityException;
       } else if (cartLinesFound.length == 1) {
         const cartLineItem = cartLinesFound[0];
-        const product = await this.productService
-          .findOne(productId)
-          .then((r) => r.product);
-        const priceId = product.defaultPrice;
-        const price = await this.priceService.findOne(priceId);
+        const product = await this.productService.findOne(productId);
+        const price = product.price;
 
         const newQuantity = cartLineItem.quantity - quantity;
         if (newQuantity <= 0) {
@@ -81,7 +76,7 @@ export class CartService {
             quantity: newQuantity,
           });
           cart.itemCount += newQuantity;
-          cart.total += price.unit_amount * newQuantity;
+          cart.total += price * newQuantity;
           cart.subtotal = cart.total;
           await cart.save();
         }
@@ -91,14 +86,14 @@ export class CartService {
     }
   }
 
-  async createCartLineItemInstance(product, price, quantity) {
+  async createCartLineItemInstance(product, quantity) {
     const payload = {} as any;
-    payload.productId = product.id;
+    payload.productId = product._id || product.id;
     payload.productTypeId = 'sdfsfd';
     payload.label = product.name;
     payload.alias = 'an alias';
     payload.description = product.description;
-    payload.unitPrice = price.unit_amount;
+    payload.unitPrice = product.price;
     payload.quantity = quantity;
     payload.thumbnailImageSrc = 'hehe';
     payload.timestampAdded = new Date().getTime();
@@ -108,11 +103,8 @@ export class CartService {
 
   async addProduct(request: AddToCartRequestDto, sessionInfo: ISession) {
     // fetch product
-    const product = await this.productService
-      .findOne(request.productId)
-      .then((r) => r.product);
-    const priceId = product.defaultPrice;
-    const price = await this.priceService.findOne(priceId);
+    const product = await this.productService.findOne(request.productId);
+    const price = product.price;
 
     // then check if cart exists, and create it if it doesnt
     let cart: ICart | null = await this.getCartBySessionId(sessionInfo.id);
@@ -124,12 +116,11 @@ export class CartService {
     if (cart.itemCount == 0) {
       const cartLineItem = await this.createCartLineItemInstance(
         product,
-        price,
         request.quantity,
       );
       cart.items.push(cartLineItem.id);
       cart.itemCount = request.quantity;
-      cart.total = price.unit_amount * request.quantity;
+      cart.total = price * request.quantity;
       cart.subtotal = cart.total;
       await cart.save();
     } else if (cart.itemCount > 0) {
@@ -139,12 +130,11 @@ export class CartService {
       if (cartLinesFound.length == 0) {
         const cartLineItem = await this.createCartLineItemInstance(
           product,
-          price,
           request.quantity,
         );
         cart.items.push(cartLineItem.id);
         cart.itemCount = request.quantity;
-        cart.total = price.unit_amount * request.quantity;
+        cart.total = price * request.quantity;
         cart.subtotal = cart.total;
         await cart.save();
       } else if (cartLinesFound.length == 1) {
@@ -152,7 +142,7 @@ export class CartService {
           quantity: cart.items[0].quantity + request.quantity,
         });
         cart.itemCount += request.quantity;
-        cart.total += price.unit_amount * request.quantity;
+        cart.total += price * request.quantity;
         cart.subtotal = cart.total;
         await cart.save();
       }

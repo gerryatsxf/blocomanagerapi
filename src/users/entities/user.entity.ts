@@ -34,6 +34,13 @@ export class User {
 
   @ApiProperty({
     type: String,
+    description: 'Tenant ID this user belongs to',
+  })
+  @Prop()
+  tenant?: string;
+
+  @ApiProperty({
+    type: String,
   })
   @Prop()
   firstName?: string;

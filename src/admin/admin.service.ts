@@ -2,23 +2,27 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException }
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument, UserRole } from '../users/entities/user.entity';
-import { Subscription } from '../subscription/entities/subscription.schema';
 import { SuperAdminGrant } from './entities/super-admin-grant.entity';
-import { TENANT_CONFIGS } from '../tenant/config/tenant.config';
+import { TENANT_CONFIGS, addTenantToConfig } from '../tenant/config/tenant.config';
 import { SessionService } from '../session/session.service';
 import { NotificationService } from '../notification/notification.service';
 import { ConfigService } from '@nestjs/config';
+import { EncryptionService } from '../encryption/encryption.service';
+import { CreateTenantDto } from './dto/create-tenant.dto';
+import { UpdateTenantDto } from './dto/update-tenant.dto';
+import { ProvisioningService } from '../tenant/provisioning.service';
 import * as crypto from 'crypto';
 
 @Injectable()
 export class AdminService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
-    @InjectModel(Subscription.name) private subscriptionModel: Model<Subscription>,
     @InjectModel(SuperAdminGrant.name) private superAdminGrantModel: Model<SuperAdminGrant>,
     private sessionService: SessionService,
     private notificationService: NotificationService,
     private configService: ConfigService,
+    private encryptionService: EncryptionService,
+    private provisioningService: ProvisioningService,
   ) {}
 
   // ==================== USER MANAGEMENT ====================
@@ -100,11 +104,125 @@ export class AdminService {
 
     // Clean up related data
     await Promise.all([
-      this.subscriptionModel.deleteOne({ userId }).exec(),
       this.sessionService.deleteSessionsByUserId(userId),
     ]);
 
     return { message: 'User deleted successfully' };
+  }
+
+  async bulkDeleteUsers(userIds: string[]) {
+    const results = {
+      deleted: [] as string[],
+      failed: [] as { userId: string; reason: string }[],
+      skipped: [] as { userId: string; reason: string }[],
+    };
+
+    for (const userId of userIds) {
+      try {
+        const user = await this.userModel.findById(userId).exec();
+        
+        if (!user) {
+          results.failed.push({ userId, reason: 'User not found' });
+          continue;
+        }
+
+        // Skip super admin accounts
+        if (user.role === UserRole.SUPER_ADMIN) {
+          results.skipped.push({ 
+            userId, 
+            reason: 'Super admin accounts cannot be deleted through admin panel' 
+          });
+          continue;
+        }
+
+        await this.userModel.findByIdAndDelete(userId).exec();
+
+        // Clean up related data
+        await Promise.all([
+          this.sessionService.deleteSessionsByUserId(userId),
+        ]);
+
+        results.deleted.push(userId);
+      } catch (error) {
+        results.failed.push({ 
+          userId, 
+          reason: error.message || 'Unknown error' 
+        });
+      }
+    }
+
+    return {
+      message: `Bulk delete completed: ${results.deleted.length} deleted, ${results.skipped.length} skipped, ${results.failed.length} failed`,
+      results,
+    };
+  }
+
+  async createUserWithInvite(
+    email: string,
+    temporaryPassword: string,
+    firstName?: string,
+    lastName?: string,
+    role: UserRole = UserRole.USER,
+  ) {
+    // Check if user already exists
+    const existingUser = await this.userModel.findOne({ email });
+    if (existingUser) {
+      throw new ConflictException('A user with this email already exists');
+    }
+
+    // Hash the temporary password
+    const hashedPassword = await this.encryptionService.hash(temporaryPassword);
+
+    // Create the user
+    const newUser = new this.userModel({
+      email,
+      password: hashedPassword,
+      firstName,
+      lastName,
+      role,
+      emailVerified: false, // User needs to verify email
+      emailVerificationToken: crypto.randomBytes(32).toString('hex'),
+    });
+
+    await newUser.save();
+
+    console.log(`👤 User created: ${email}`);
+    console.log(`📧 Attempting to send invitation email...`);
+
+    // Send invitation email with credentials
+    let emailSent = false;
+    try {
+      await this.notificationService.sendUserInviteEmail(
+        email,
+        temporaryPassword,
+        firstName,
+      );
+      emailSent = true;
+      console.log(`✅ Invitation email sent successfully to: ${email}`);
+    } catch (error) {
+      console.error(`❌ Failed to send invitation email:`, error.message);
+      console.log(`⚠️  User created but email NOT sent. Email logged to console.`);
+    }
+
+    return {
+      message: emailSent 
+        ? 'User created successfully and invitation email sent'
+        : 'User created successfully but invitation email could not be sent. Please check server logs or connect Google account in Settings.',
+      emailSent,
+      user: {
+        id: newUser._id,
+        email: newUser.email,
+        firstName: newUser.firstName,
+        lastName: newUser.lastName,
+        role: newUser.role,
+        emailVerified: newUser.emailVerified,
+        createdAt: newUser.createdAt,
+      },
+      credentials: emailSent ? undefined : {
+        email: newUser.email,
+        temporaryPassword: temporaryPassword,
+      },
+    };
   }
 
   async getUserActivity(userId: string) {
@@ -174,61 +292,357 @@ export class AdminService {
     };
   }
 
-  // ==================== SUBSCRIPTION MANAGEMENT ====================
+  async createTenant(dto: CreateTenantDto) {
+    // Check if tenant ID already exists
+    if (TENANT_CONFIGS[dto.tenantId]) {
+      throw new ConflictException(`Tenant with ID "${dto.tenantId}" already exists`);
+    }
 
-  async getAllSubscriptions(page: number = 1, limit: number = 50) {
-    const skip = (page - 1) * limit;
-    const [subscriptions, total] = await Promise.all([
-      this.subscriptionModel
-        .find()
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(limit)
-        .lean()
-        .exec(),
-      this.subscriptionModel.countDocuments(),
-    ]);
-
-    // Enrich with user data
-    const enrichedSubs = await Promise.all(
-      subscriptions.map(async (sub) => {
-        const user = await this.userModel.findById(sub.userId).select('email firstName lastName').lean().exec();
-        return {
-          ...sub,
-          user,
-        };
-      })
+    // Check if domain is already in use
+    const existingTenant = Object.values(TENANT_CONFIGS).find(
+      config => config.domain === dto.domain
     );
+    if (existingTenant) {
+      throw new ConflictException(`Domain "${dto.domain}" is already used by tenant "${existingTenant.tenantId}"`);
+    }
+
+    // Add tenant to the config
+    const newTenant = addTenantToConfig({
+      tenantId: dto.tenantId,
+      domain: dto.domain,
+      name: dto.name,
+      description: dto.description || '',
+      deploymentStatus: 'pending',
+    });
+
+    // Trigger provisioning if enabled
+    if (this.provisioningService.isEnabled()) {
+      try {
+        console.log(`🚀 Initiating provisioning for tenant: ${newTenant.tenantId}`);
+        
+        const result = await this.provisioningService.provisionTenant(newTenant);
+        
+        newTenant.deploymentStatus = result.status as any;
+        newTenant.deploymentId = result.deploymentId;
+        
+        console.log(`📦 Provisioning initiated. Deployment ID: ${result.deploymentId}`);
+      } catch (error) {
+        console.error(`❌ Provisioning failed for tenant ${newTenant.tenantId}:`, error.message);
+        newTenant.deploymentStatus = 'failed';
+      }
+    } else {
+      console.log('⚠️ Provisioning service not enabled. Tenant created without frontend deployment.');
+    }
 
     return {
-      data: enrichedSubs,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
+      message: 'Tenant created successfully',
+      tenant: newTenant,
+    };
+  }
+
+  async updateTenant(tenantId: string, dto: UpdateTenantDto) {
+    const tenant = TENANT_CONFIGS[tenantId];
+    if (!tenant) {
+      throw new NotFoundException(`Tenant with ID "${tenantId}" not found`);
+    }
+
+    // If changing tenant ID, check it doesn't already exist
+    if (dto.tenantId && dto.tenantId !== tenantId) {
+      if (TENANT_CONFIGS[dto.tenantId]) {
+        throw new ConflictException(`Tenant with ID "${dto.tenantId}" already exists`);
+      }
+    }
+
+    // If changing domain, check it's not already in use
+    if (dto.domain && dto.domain !== tenant.domain) {
+      const existingTenant = Object.values(TENANT_CONFIGS).find(
+        config => config.domain === dto.domain && config.tenantId !== tenantId
+      );
+      if (existingTenant) {
+        throw new ConflictException(`Domain "${dto.domain}" is already used by tenant "${existingTenant.tenantId}"`);
+      }
+    }
+
+    // Store old values for potential cleanup
+    const oldTenantId = tenantId;
+    const oldDomain = tenant.domain;
+
+    // Update fields
+    if (dto.tenantId !== undefined && dto.tenantId !== tenantId) {
+      // Remove old tenant config
+      delete TENANT_CONFIGS[oldTenantId];
+      // Update tenant ID
+      tenant.tenantId = dto.tenantId;
+      // Add with new ID
+      TENANT_CONFIGS[dto.tenantId] = tenant;
+    }
+
+    if (dto.domain !== undefined) {
+      // Remove old domain mapping
+      const TENANT_DOMAIN_MAPPING = require('../tenant/config/tenant.config').TENANT_DOMAIN_MAPPING;
+      delete TENANT_DOMAIN_MAPPING[oldDomain];
+      // Update domain
+      tenant.domain = dto.domain;
+      // Add new domain mapping
+      TENANT_DOMAIN_MAPPING[dto.domain] = dto.tenantId || tenantId;
+    }
+
+    if (dto.name !== undefined) {
+      tenant.name = dto.name;
+    }
+
+    if (dto.description !== undefined) {
+      tenant.description = dto.description;
+    }
+
+    return {
+      message: 'Tenant updated successfully',
+      tenant,
+      oldTenantId: dto.tenantId !== tenantId ? oldTenantId : undefined,
+    };
+  }
+
+  async undeployTenant(tenantId: string) {
+    const tenant = TENANT_CONFIGS[tenantId];
+    if (!tenant) {
+      throw new NotFoundException(`Tenant with ID "${tenantId}" not found`);
+    }
+
+    if (!this.provisioningService.isEnabled()) {
+      throw new BadRequestException('Provisioning service is not enabled');
+    }
+
+    if (tenant.deploymentStatus !== 'deployed') {
+      throw new BadRequestException(`Tenant is not currently deployed (status: ${tenant.deploymentStatus})`);
+    }
+
+    try {
+      console.log(`🗑️ Initiating undeploy for tenant: ${tenantId}`);
+      
+      const result = await this.provisioningService.undeployTenant(tenantId);
+      
+      // Update tenant status
+      tenant.deploymentStatus = 'undeployed';
+      tenant.containerId = undefined;
+      tenant.frontendUrl = undefined;
+      tenant.deployedAt = undefined;
+      
+      console.log(`✅ Tenant ${tenantId} undeployed successfully`);
+      
+      return {
+        message: result.message,
+        tenant,
+      };
+    } catch (error) {
+      console.error(`❌ Failed to undeploy tenant ${tenantId}:`, error.message);
+      throw new BadRequestException(`Failed to undeploy tenant: ${error.message}`);
+    }
+  }
+
+  async getTenantAdmins(tenantId: string) {
+    const tenant = TENANT_CONFIGS[tenantId];
+    if (!tenant) {
+      throw new NotFoundException(`Tenant with ID "${tenantId}" not found`);
+    }
+
+    // Find all users who are tenant admins for this tenant
+    const admins = await this.userModel
+      .find({ tenant: tenantId, role: UserRole.TENANT_ADMIN })
+      .select('-password')
+      .lean();
+
+    return admins;
+  }
+
+  async assignTenantAdmin(tenantId: string, userId: string) {
+    const tenant = TENANT_CONFIGS[tenantId];
+    if (!tenant) {
+      throw new NotFoundException(`Tenant with ID "${tenantId}" not found`);
+    }
+
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    // Validate: User must not be a tenant admin of another tenant
+    if (user.tenant && user.tenant !== tenantId && user.role === UserRole.TENANT_ADMIN) {
+      throw new ConflictException(`User is already a tenant admin of tenant "${user.tenant}". Remove them from that tenant first.`);
+    }
+
+    // Update user role and tenant
+    user.role = UserRole.TENANT_ADMIN;
+    user.tenant = tenantId;
+    await user.save();
+
+    return {
+      message: 'User assigned as tenant admin successfully',
+      user: {
+        _id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        tenant: user.tenant,
       },
     };
   }
 
-  async updateSubscription(userId: string, planId: string) {
-    const subscription = await this.subscriptionModel
-      .findOneAndUpdate(
-        { userId },
-        { planId },
-        { new: true, upsert: true }
-      )
-      .exec();
+  async removeTenantAdmin(tenantId: string, userId: string) {
+    const tenant = TENANT_CONFIGS[tenantId];
+    if (!tenant) {
+      throw new NotFoundException(`Tenant with ID "${tenantId}" not found`);
+    }
 
-    return subscription;
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (user.tenant !== tenantId) {
+      throw new BadRequestException('User is not a tenant admin of this tenant');
+    }
+
+    // Update user role back to regular user and clear tenant
+    user.role = UserRole.USER;
+    user.tenant = null;
+    await user.save();
+
+    return {
+      message: 'User removed from tenant admin successfully',
+      user: {
+        _id: user._id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        role: user.role,
+        tenant: user.tenant,
+      },
+    };
+  }
+
+  // ==================== PAYMENT PROVIDER CONFIGURATION ====================
+
+  async savePaymentProviderConfig(tenantId: string, configData: any) {
+    const tenant = TENANT_CONFIGS[tenantId];
+    if (!tenant) {
+      throw new NotFoundException(`Tenant with ID "${tenantId}" not found`);
+    }
+
+    const { provider, enabled, config } = configData;
+
+    if (!provider || typeof enabled !== 'boolean' || !config) {
+      throw new BadRequestException('Invalid payment provider configuration');
+    }
+
+    // Encrypt sensitive keys
+    const encryptedConfig = { ...config };
+    const sensitiveKeys = ['apiKey', 'secretKey', 'webhookSecret'];
+    
+    for (const key of sensitiveKeys) {
+      if (config[key]) {
+        encryptedConfig[key] = this.encryptionService.encrypt(config[key]);
+      }
+    }
+
+    // Initialize settings if not exists
+    if (!tenant.settings) {
+      tenant.settings = {};
+    }
+    if (!tenant.settings.paymentProviders) {
+      tenant.settings.paymentProviders = [];
+    }
+
+    // Update or add provider config
+    const existingIndex = tenant.settings.paymentProviders.findIndex(
+      p => p.provider === provider
+    );
+
+    const providerConfig = {
+      provider,
+      enabled,
+      config: encryptedConfig,
+    };
+
+    if (existingIndex >= 0) {
+      tenant.settings.paymentProviders[existingIndex] = providerConfig;
+    } else {
+      tenant.settings.paymentProviders.push(providerConfig);
+    }
+
+    return {
+      message: 'Payment provider configuration saved successfully',
+      provider,
+      enabled,
+    };
+  }
+
+  async getPaymentProviderConfigs(tenantId: string) {
+    const tenant = TENANT_CONFIGS[tenantId];
+    if (!tenant) {
+      throw new NotFoundException(`Tenant with ID "${tenantId}" not found`);
+    }
+
+    const providers = tenant.settings?.paymentProviders || [];
+
+    // Decrypt sensitive keys for display (show masked version)
+    const decryptedProviders = providers.map(p => {
+      const config = { ...p.config };
+      const sensitiveKeys = ['apiKey', 'secretKey', 'webhookSecret'];
+      
+      for (const key of sensitiveKeys) {
+        if (config[key]) {
+          try {
+            // Decrypt and mask for display
+            const decrypted = this.encryptionService.decrypt(config[key]);
+            config[key] = '***' + decrypted.slice(-4); // Show only last 4 characters
+          } catch (error) {
+            config[key] = '***encrypted***';
+          }
+        }
+      }
+
+      return {
+        provider: p.provider,
+        enabled: p.enabled,
+        config,
+      };
+    });
+
+    return {
+      paymentProviders: decryptedProviders,
+    };
+  }
+
+  // ==================== STORAGE PROVIDER CONFIGURATION ====================
+
+  async updateStorageProvider(tenantId: string, storageProvider: string, storageConfig?: Record<string, any>) {
+    const tenant = TENANT_CONFIGS[tenantId];
+    if (!tenant) {
+      throw new NotFoundException(`Tenant with ID "${tenantId}" not found`);
+    }
+
+    const validProviders = ['local', 'aws_s3', 'azure_blob', 'google_cloud'];
+    if (!validProviders.includes(storageProvider)) {
+      throw new BadRequestException(`Invalid storage provider. Must be one of: ${validProviders.join(', ')}`);
+    }
+
+    tenant.storageProvider = storageProvider;
+    if (storageConfig) {
+      tenant.storageConfig = storageConfig;
+    }
+
+    return {
+      message: 'Storage provider updated successfully',
+      storageProvider: tenant.storageProvider,
+    };
   }
 
   // ==================== PAYMENT/ANALYTICS ====================
 
   async getDashboardStats() {
-    const [totalUsers, totalSubscriptions, usersByRole] = await Promise.all([
+    const [totalUsers, usersByRole] = await Promise.all([
       this.userModel.countDocuments(),
-      this.subscriptionModel.countDocuments(),
       this.userModel.aggregate([
         {
           $group: {
@@ -239,20 +653,9 @@ export class AdminService {
       ]),
     ]);
 
-    const subscriptionsByPlan = await this.subscriptionModel.aggregate([
-      {
-        $group: {
-          _id: '$planId',
-          count: { $sum: 1 },
-        },
-      },
-    ]);
-
     return {
       totalUsers,
-      totalSubscriptions,
       usersByRole,
-      subscriptionsByPlan,
     };
   }
 

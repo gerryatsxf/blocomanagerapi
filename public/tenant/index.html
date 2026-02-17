@@ -1,0 +1,797 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tenant Admin Panel - BlocoManager</title>
+    <link rel="stylesheet" href="styles.css">
+    <!-- Quill WYSIWYG Editor -->
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+</head>
+<body>
+    <!-- Toast Container -->
+    <div id="toastContainer" class="toast-container"></div>
+
+    <!-- Login View -->
+    <div id="loginView" class="login-container">
+        <div class="login-card">
+            <h1>🏢 Tenant Admin Panel</h1>
+            <p class="subtitle">Manage your business settings and operations</p>
+            
+            <form id="loginForm" class="login-form">
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" name="email" required autocomplete="email">
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" required autocomplete="current-password">
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-block">Sign In</button>
+                
+                <div id="loginError" class="error-message"></div>
+            </form>
+
+            <div class="divider">
+                <span>OR</span>
+            </div>
+
+            <button id="googleLoginBtn" class="btn btn-google btn-block">
+                <svg width="18" height="18" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                </svg>
+                Continue with Google
+            </button>
+        </div>
+    </div>
+
+    <!-- Main Dashboard View -->
+    <div id="dashboardView" class="dashboard" style="display: none;">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>🏢 Tenant Admin</h2>
+                <p id="tenantName" class="tenant-name">Loading...</p>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-view="dashboard">
+                    <span class="nav-icon">📊</span>
+                    <span class="nav-text">Dashboard</span>
+                </a>
+                <a href="#" class="nav-item" data-view="details">
+                    <span class="nav-icon">🏢</span>
+                    <span class="nav-text">Tenant Details</span>
+                </a>
+                <a href="#" class="nav-item" data-view="products">
+                    <span class="nav-icon">📦</span>
+                    <span class="nav-text">Products</span>
+                </a>
+                <a href="#" class="nav-item" data-view="contacts">
+                    <span class="nav-icon">👥</span>
+                    <span class="nav-text">Contacts</span>
+                </a>
+                <a href="#" class="nav-item" data-view="calendar">
+                    <span class="nav-icon">📅</span>
+                    <span class="nav-text">Calendar</span>
+                </a>
+                <a href="#" class="nav-item" data-view="live-site">
+                    <span class="nav-icon">🌐</span>
+                    <span class="nav-text">Live Site</span>
+                </a>
+                <a href="#" class="nav-item" data-view="settings">
+                    <span class="nav-icon">⚙️</span>
+                    <span class="nav-text">Settings</span>
+                </a>
+            </nav>
+            
+            <div class="sidebar-footer">
+                <div class="user-info">
+                    <div id="userEmail" class="user-email">user@example.com</div>
+                    <div id="userRole" class="user-role">Tenant Admin</div>
+                </div>
+                <button id="logoutBtn" class="btn btn-secondary btn-block">Logout</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Dashboard Overview -->
+            <div id="dashboardContent" class="view">
+                <div class="view-header">
+                    <h2>Dashboard</h2>
+                    <button class="btn btn-secondary" onclick="location.reload()">
+                        🔄 Refresh
+                    </button>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon">👥</div>
+                        <div class="stat-info">
+                            <div class="stat-value" id="totalUsers">-</div>
+                            <div class="stat-label">Total Users</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">📦</div>
+                        <div class="stat-info">
+                            <div class="stat-value" id="totalProducts">-</div>
+                            <div class="stat-label">Products</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">📅</div>
+                        <div class="stat-info">
+                            <div class="stat-value" id="totalSessions">-</div>
+                            <div class="stat-label">Sessions</div>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card">
+                        <div class="stat-icon">💰</div>
+                        <div class="stat-info">
+                            <div class="stat-value" id="totalRevenue">$0</div>
+                            <div class="stat-label">Revenue</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 2rem;">
+                    <div class="card-header">
+                        <h3>Recent Activity</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="recentActivity">
+                            <p style="color: var(--text-secondary);">No recent activity</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tenant Details -->
+            <div id="detailsContent" class="view" style="display: none;">
+                <div class="view-header">
+                    <h2>Tenant Details</h2>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Business Information</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="tenantDetailsForm">
+                            <div class="form-group">
+                                <label>Tenant ID</label>
+                                <input type="text" id="detailTenantId" readonly disabled>
+                                <small style="color: var(--text-secondary);">This cannot be changed</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Domain</label>
+                                <input type="text" id="detailDomain" readonly disabled>
+                                <small style="color: var(--text-secondary);">Contact support to change domain</small>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Business Name *</label>
+                                <input type="text" id="detailName" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label>Description</label>
+                                <textarea id="detailDescription" rows="4"></textarea>
+                            </div>
+
+                            <div class="modal-actions">
+                                <button type="submit" class="btn btn-primary">Save Changes</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 2rem;">
+                    <div class="card-header">
+                        <h3>Frontend Deployment</h3>
+                    </div>
+                    <div class="card-body">
+                        <div id="deploymentInfo">
+                            <div style="margin-bottom: 1rem;">
+                                <strong>Status:</strong>
+                                <span id="deploymentStatusBadge" class="badge badge-secondary">Loading...</span>
+                            </div>
+                            <div id="deploymentUrl" style="margin-bottom: 1rem; display: none;">
+                                <strong>URL:</strong>
+                                <a id="deploymentUrlLink" href="#" target="_blank" style="color: var(--primary);">-</a>
+                            </div>
+                            <div id="deploymentDate" style="margin-bottom: 1rem; display: none;">
+                                <strong>Deployed:</strong>
+                                <span id="deploymentDateValue">-</span>
+                            </div>
+                            <p id="deploymentMessage" style="color: var(--text-secondary); margin-top: 1rem;">
+                                Loading deployment information...
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Products View -->
+            <div id="productsContent" class="view" style="display: none;">
+                <div class="toolbar">
+                    <h2>Products</h2>
+                    <div>
+                        <button class="btn btn-primary" id="addProductBtn">+ Add Product</button>
+                        <button class="btn btn-secondary" id="refreshProducts">🔄 Refresh</button>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Description</th>
+                                <th>Price</th>
+                                <th>Duration</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="productsTableBody">
+                            <tr>
+                                <td colspan="6" style="text-align: center; padding: 2rem;">
+                                    Loading products...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Contacts View -->
+            <div id="contactsContent" class="view" style="display: none;">
+                <div class="toolbar">
+                    <h2>Contacts</h2>
+                    <div>
+                        <button class="btn btn-primary" id="addContactBtn">+ Add Contact</button>
+                        <button class="btn btn-secondary" id="refreshContacts">🔄 Refresh</button>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Phone</th>
+                                <th>Type</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="contactsTableBody">
+                            <tr>
+                                <td colspan="5" style="text-align: center; padding: 2rem;">
+                                    Loading contacts...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Settings View -->
+            <div id="settingsContent" class="view" style="display: none;">
+                <div class="view-header">
+                    <h2>Settings</h2>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Payment Provider Configuration</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="margin-bottom: 2rem;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Select Provider</label>
+                            <select id="paymentProviderSelect" style="width: 100%; padding: 0.5rem; border-radius: 4px; border: 1px solid var(--border);">
+                                <option value="stripe">Stripe</option>
+                                <option value="clip">Clip</option>
+                            </select>
+                        </div>
+
+                        <!-- Stripe Config -->
+                        <form id="stripeConfigForm" class="provider-config-form" style="display: none;">
+                            <h4 style="margin-bottom: 1rem;">Stripe Configuration</h4>
+                            <div class="form-group">
+                                <label>Stripe API Key</label>
+                                <input type="text" id="stripeApiKey" placeholder="sk_test_...">
+                            </div>
+                            <div class="form-group">
+                                <label>Stripe Publishable Key</label>
+                                <input type="text" id="stripePublishableKey" placeholder="pk_test_...">
+                            </div>
+                            <div class="form-group">
+                                <label>Webhook Secret</label>
+                                <input type="text" id="stripeWebhookSecret" placeholder="whsec_...">
+                            </div>
+                            <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="stripeEnabled">
+                                    Enable Stripe
+                                </label>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Save Stripe Config</button>
+                        </form>
+
+                        <!-- Clip Config -->
+                        <form id="clipConfigForm" class="provider-config-form" style="display: none;">
+                            <h4 style="margin-bottom: 1rem;">Clip Configuration</h4>
+                            <div class="form-group">
+                                <label>Clip API Key *</label>
+                                <input type="text" id="clipApiKey" placeholder="Your Clip API Key" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Clip Secret Key *</label>
+                                <input type="password" id="clipSecretKey" placeholder="Your Clip Secret Key" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Environment</label>
+                                <select id="clipEnvironment">
+                                    <option value="sandbox">Sandbox (Test)</option>
+                                    <option value="production">Production</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="clipEnabled">
+                                    Enable Clip
+                                </label>
+                            </div>
+                            <button type="submit" class="btn btn-primary">Save Clip Config</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Calendar View -->
+            <div id="calendarContent" class="view" style="display: none;">
+                <div class="view-header">
+                    <h2>📅 Calendar & Meetings</h2>
+                </div>
+
+                <!-- Global Sync Preference -->
+                <div class="card" style="margin-bottom: 2rem;">
+                    <div class="card-body" style="padding: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; margin: 0;">
+                            <input type="checkbox" id="globalSyncPreference" checked onchange="handleGlobalSyncToggle()" style="width: 20px; height: 20px; cursor: pointer;">
+                            <div>
+                                <strong style="font-size: 1rem;">Sync new bookings to Google Calendar</strong>
+                                <p style="margin: 0.25rem 0 0 0; color: var(--text-secondary); font-size: 0.875rem;">
+                                    When enabled, newly created bookings will automatically sync to your Google Calendar
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Google Calendar Connection Banner -->
+                <div id="calendarConnectionBanner" class="alert" style="display: none; margin-bottom: 2rem;">
+                    <!-- Banner content will be dynamically updated -->
+                </div>
+
+                <!-- Google Calendar Connection Card -->
+                <div class="card" style="margin-bottom: 2rem;">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>📅 Google Calendar Integration</h3>
+                        <div id="calendarStatusIndicator" style="display: none;">
+                            <span class="badge badge-success">● Connected</span>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="calendarNotConnected" style="display: none;">
+                            <p style="margin-bottom: 1.5rem;">
+                                Connect your Google Calendar to enable bidirectional sync between your meetings and calendar events.
+                            </p>
+                            <button onclick="connectGoogleCalendar()" class="btn btn-primary">
+                                🔗 Connect Google Calendar
+                            </button>
+                        </div>
+
+                        <div id="calendarConnected" style="display: none;">
+                            <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem;">
+                                <span class="badge badge-success">✓ Connected</span>
+                                <span id="calendarEmail" style="color: var(--text-secondary);"></span>
+                            </div>
+                            <p style="margin-bottom: 1.5rem; color: var(--text-secondary);">
+                                Your calendar is synced. Changes in Google Calendar will automatically reflect here, and vice versa.
+                            </p>
+                            <div style="display: flex; gap: 1rem;">
+                                <button onclick="window.open('https://calendar.google.com', '_blank')" class="btn btn-primary">
+                                    📆 Open Google Calendar
+                                </button>
+                                <button onclick="disconnectGoogleCalendar()" class="btn btn-secondary">
+                                    Disconnect
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Upcoming Meetings Card -->
+                <div class="card" style="margin-bottom: 2rem;">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <h3 style="margin: 0;">📋 Upcoming Bookings</h3>
+                            <div id="syncStatusChip" style="padding: 0.2rem 0.6rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.3rem;">
+                                <span id="syncStatusDot" style="width: 5px; height: 5px; border-radius: 50%; display: inline-block;"></span>
+                                <span id="syncStatusText"></span>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button onclick="syncFromGoogleCalendar()" class="btn btn-secondary btn-sm" id="syncCalendarBtn" title="Sync bookings from Google Calendar">
+                                🔄 Sync from Calendar
+                            </button>
+                            <button onclick="openCreateMeetingModal()" class="btn btn-primary btn-sm">
+                                ➕ Create Booking
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body" style="padding-top: 1rem;">
+                        <div id="upcomingMeetingsList">
+                            <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                                <p>Loading bookings...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Live Site View -->
+            <div id="liveSiteContent" class="view" style="display: none;">
+                <div class="view-header">
+                    <h2>Live Site Management</h2>
+                </div>
+
+                <!-- Health Check Card -->
+                <div class="card" style="margin-bottom: 2rem;">
+                    <div class="card-header">
+                        <h3>🏥 Site Health</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="health-checks-list">
+                            <div class="health-check-item">
+                                <div class="health-check-info">
+                                    <span class="health-check-icon status-live">✓</span>
+                                    <div>
+                                        <h4>Live Status</h4>
+                                        <p>Your customer-facing site is live and accessible</p>
+                                    </div>
+                                </div>
+                                <span class="badge badge-success">Live</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Template Selection Card -->
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Template Selection</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 2rem;">
+                            <button class="template-pill active" data-template="two-column">
+                                📄 Two Column
+                            </button>
+                            <button class="template-pill disabled" disabled>
+                                🔒 Grid Layout
+                            </button>
+                            <button class="template-pill disabled" disabled>
+                                🔒 Magazine
+                            </button>
+                            <button class="template-pill disabled" disabled>
+                                🔒 Minimalist
+                            </button>
+                            <button class="template-pill disabled" disabled>
+                                🔒 Corporate
+                            </button>
+                        </div>
+
+                        <div id="templateConfigSection" style="display: none;">
+                            <h4 style="margin-bottom: 1rem;">Template Configuration</h4>
+                            
+                            <!-- Logo Upload -->
+                            <div class="form-group" style="margin-bottom: 2rem;">
+                                <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Business Logo</label>
+                                <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 1rem;">Upload your business logo (max 5MB)</p>
+                                <div class="image-upload-container">
+                                    <div id="logoPreview" class="image-preview" style="display: none;">
+                                        <img id="logoPreviewImg" src="" alt="Logo preview">
+                                        <button type="button" class="btn btn-sm btn-danger" onclick="removeImage('logo')">Remove</button>
+                                    </div>
+                                    <div id="logoUploadBtn" class="upload-placeholder">
+                                        <input type="file" id="logoInput" accept="image/*" style="display: none;" onchange="handleImageUpload('logo', this)">
+                                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('logoInput').click()">
+                                            📷 Upload Logo
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Profile Photo Upload -->
+                            <div class="form-group" style="margin-bottom: 2rem;">
+                                <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Your Profile Photo</label>
+                                <p style="font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 1rem;">Upload a professional photo of yourself (max 5MB)</p>
+                                <div class="image-upload-container">
+                                    <div id="profilePreview" class="image-preview" style="display: none;">
+                                        <img id="profilePreviewImg" src="" alt="Profile preview">
+                                        <button type="button" class="btn btn-sm btn-danger" onclick="removeImage('profile')">Remove</button>
+                                    </div>
+                                    <div id="profileUploadBtn" class="upload-placeholder">
+                                        <input type="file" id="profileInput" accept="image/*" style="display: none;" onchange="handleImageUpload('profile', this)">
+                                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('profileInput').click()">
+                                            📷 Upload Photo
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <form id="templateConfigForm">
+                                <div class="form-group">
+                                    <label>Description *</label>
+                                    <div id="templateDescriptionEditor" style="border: 1px solid var(--border); border-radius: 4px; padding: 1rem; min-height: 200px; background: white;"></div>
+                                    <input type="hidden" id="templateDescription" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">Save Template Configuration</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Product Modal -->
+    <div id="productModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="productModalTitle">Add Product</h3>
+                <button class="modal-close" onclick="closeProductModal()">&times;</button>
+            </div>
+            <form id="productForm">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Product Name *</label>
+                        <input type="text" id="productName" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Description *</label>
+                        <textarea id="productDescription" required rows="4"></textarea>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Price *</label>
+                            <input type="number" id="productPrice" required min="0" step="0.01">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Currency</label>
+                            <select id="productCurrency">
+                                <option value="MXN">MXN</option>
+                                <option value="USD">USD</option>
+                                <option value="EUR">EUR</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Payment Provider</label>
+                        <select id="productPaymentProvider">
+                            <option value="stripe">Stripe</option>
+                            <option value="clip">Clip</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Provider Product/Price ID</label>
+                        <input type="text" id="productPaymentProviderId" placeholder="e.g., price_1ABC123xyz">
+                        <small style="color: var(--text-secondary);">Optional: Link to existing product in payment provider</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Duration (minutes)</label>
+                        <input type="number" id="productDuration" min="0" step="15">
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="checkbox" id="productActive" checked>
+                            Active
+                        </label>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeProductModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Product</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Contact Modal -->
+    <div id="contactModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="contactModalTitle">Add Contact</h3>
+                <button class="modal-close" onclick="closeContactModal()">&times;</button>
+            </div>
+            <form id="contactForm">
+                <div class="modal-body">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>First Name *</label>
+                            <input type="text" id="contactFirstName" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Last Name *</label>
+                            <input type="text" id="contactLastName" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Email *</label>
+                        <input type="email" id="contactEmail" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Phone</label>
+                        <input type="tel" id="contactPhone">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Contact Type</label>
+                        <select id="contactType">
+                            <option value="lead">Lead</option>
+                            <option value="customer">Customer</option>
+                            <option value="partner">Partner</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Notes</label>
+                        <textarea id="contactNotes" rows="3"></textarea>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeContactModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Save Contact</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Create Booking Modal -->
+    <div id="createBookingModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 id="createBookingModalTitle">Create Booking</h3>
+                <button class="close-btn" onclick="closeCreateBookingModal()">&times;</button>
+            </div>
+            <form id="createBookingForm" onsubmit="handleCreateBooking(event)">
+                <div class="modal-body">
+                    <!-- Customer Information -->
+                    <h4 style="margin-bottom: 1rem; color: var(--primary);">Customer Information</h4>
+                    <div class="form-group">
+                        <label>Customer Name *</label>
+                        <input type="text" id="bookingCustomerName" required placeholder="John Doe">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Customer Email *</label>
+                        <input type="email" id="bookingCustomerEmail" required placeholder="customer@example.com">
+                    </div>
+
+                    <!-- Booking Details -->
+                    <h4 style="margin: 1.5rem 0 1rem; color: var(--primary);">Booking Details</h4>
+                    <div class="form-group">
+                        <label>Tenant *</label>
+                        <input type="text" id="bookingTenant" required readonly>
+                        <small style="color: var(--text-secondary);">Your tenant ID</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Title *</label>
+                        <input type="text" id="bookingTitle" required placeholder="1:1 Tutoring Session">
+                    </div>
+
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea id="bookingDescription" rows="3" placeholder="Booking details and notes"></textarea>
+                    </div>
+
+                    <!-- Date & Time -->
+                    <h4 style="margin: 1.5rem 0 1rem; color: var(--primary);">Date & Time</h4>
+                    <div class="form-group">
+                        <label>Date *</label>
+                        <input type="date" id="bookingDate" required>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label>Start Time *</label>
+                            <input type="time" id="bookingStartTime" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label>End Time *</label>
+                            <input type="time" id="bookingEndTime" required>
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Guest Timezone *</label>
+                        <input type="text" id="bookingTimezone" required value="America/New_York" placeholder="America/New_York">
+                        <small style="color: var(--text-secondary);">Timezone identifier (e.g., America/New_York, Europe/London)</small>
+                    </div>
+
+                    <!-- Location -->
+                    <div class="form-group">
+                        <label>Location</label>
+                        <input type="text" id="bookingLocation" placeholder="Office or online">
+                    </div>
+
+                    <!-- Payment -->
+                    <h4 style="margin: 1.5rem 0 1rem; color: var(--primary);">Payment</h4>
+                    <div class="form-group">
+                        <label>Status *</label>
+                        <select id="bookingStatus" required>
+                            <option value="pending">Pending</option>
+                            <option value="confirmed">Confirmed</option>
+                            <option value="processing">Processing</option>
+                            <option value="completed">Completed</option>
+                            <option value="failed">Failed</option>
+                            <option value="refunded">Refunded</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Payment Expiration (Days from now)</label>
+                        <input type="number" id="bookingPaymentExpiration" value="7" min="1" placeholder="7">
+                        <small style="color: var(--text-secondary);">Days until payment link expires</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="checkbox" id="bookingAutoSync" checked>
+                            Sync to Google Calendar (creates calendar event)
+                        </label>
+                        <small style="color: var(--text-secondary); margin-left: 1.5rem;">Event will appear in your calendar. You can add a video call link later.</small>
+                    </div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" onclick="closeCreateBookingModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Create Booking</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

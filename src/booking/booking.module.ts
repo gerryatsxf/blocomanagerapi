@@ -28,7 +28,10 @@ import { TenantModule } from '../tenant/tenant.module';
     MongooseModule.forFeature([{ name: 'Session', schema: SessionSchema }]),
     MongooseModule.forFeature([{ name: 'Booking', schema: BookingSchema }]),
   ],
-  exports: [HttpModule],
+  exports: [
+    HttpModule,
+    MongooseModule, // Export MongooseModule so BookingModel is available in other modules
+  ],
   controllers: [BookingController],
   providers: [
     BookingService,
