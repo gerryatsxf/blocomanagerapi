@@ -1,10 +1,8 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { MeetingService } from './meeting.service';
 import { HttpModule } from '@nestjs/axios';
-import { FreeSlotService } from '../free-slot/free-slot.service';
 import { FreeSlotModule } from '../free-slot/free-slot.module';
 import { MongooseModule } from '@nestjs/mongoose';
-import { AvailabilityService } from '../availability/availability.service';
 import { AvailabilityModule } from '../availability/availability.module';
 import { CalendarModule } from '../calendar/calendar.module';
 import { MeetingController } from './meeting.controller';
@@ -35,8 +33,6 @@ import { VideoCallService } from './services/video-call.service';
   providers: [
     MeetingService,
     VideoCallService,
-    FreeSlotService,
-    AvailabilityService,
     SessionService,
     EncryptionService,
     CalendarProviderFactory,

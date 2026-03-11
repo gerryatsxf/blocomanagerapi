@@ -156,6 +156,10 @@ function setupEventListeners() {
     document.getElementById('stripeConfigForm')?.addEventListener('submit', handleStripeConfigUpdate);
     document.getElementById('clipConfigForm')?.addEventListener('submit', handleClipConfigUpdate);
 
+    // Availability config
+    document.getElementById('availabilityForm')?.addEventListener('submit', handleAvailabilitySave);
+    document.getElementById('addTimeRangeBtn')?.addEventListener('click', addTimeRange);
+
     // Template config
     document.getElementById('templateConfigForm')?.addEventListener('submit', handleTemplateConfigSubmit);
 
@@ -705,6 +709,9 @@ async function loadSettings() {
 
         // Show first provider form
         switchPaymentProviderForm();
+
+        // Load availability config
+        await loadAvailability();
     } catch (error) {
         console.error('Failed to load settings:', error);
     }
@@ -781,6 +788,97 @@ async function handleClipConfigUpdate(event) {
         showToast('Clip configuration saved successfully', 'success');
     } catch (error) {
         showToast('Failed to save Clip config: ' + error.message, 'error');
+    }
+}
+
+// Availability Schedule Management
+async function loadAvailability() {
+    try {
+        if (!currentUser?.tenant) return;
+
+        const data = await apiCall(`/admin/availability`);
+        const avail = data.availability;
+        const timezones = data.timezones || [];
+
+        // Populate timezone dropdown
+        const tzSelect = document.getElementById('availTimezone');
+        tzSelect.innerHTML = '';
+        timezones.forEach(tz => {
+            const opt = document.createElement('option');
+            opt.value = tz;
+            opt.textContent = tz;
+            tzSelect.appendChild(opt);
+        });
+        tzSelect.value = avail.timezone || 'America/Monterrey';
+
+        // Set session duration
+        document.getElementById('availSessionDuration').value = avail.sessionDuration || 30;
+
+        // Set available days
+        document.querySelectorAll('input[name="availDay"]').forEach(cb => {
+            cb.checked = (avail.availableDays || []).includes(cb.value);
+        });
+
+        // Set available hours
+        const container = document.getElementById('availHoursContainer');
+        container.innerHTML = '';
+        if (avail.availableHours && avail.availableHours.length > 0) {
+            avail.availableHours.forEach(range => {
+                addTimeRange(null, range.startTime, range.endTime);
+            });
+        }
+    } catch (error) {
+        console.error('Failed to load availability:', error);
+    }
+}
+
+function addTimeRange(event, startTime = '09:00', endTime = '17:00') {
+    if (event) event.preventDefault();
+
+    const container = document.getElementById('availHoursContainer');
+    const row = document.createElement('div');
+    row.style.cssText = 'display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;';
+    row.innerHTML = `
+        <input type="time" class="avail-start" value="${startTime}" style="padding: 0.4rem; border: 1px solid var(--border); border-radius: 4px;">
+        <span>to</span>
+        <input type="time" class="avail-end" value="${endTime}" style="padding: 0.4rem; border: 1px solid var(--border); border-radius: 4px;">
+        <button type="button" onclick="this.parentElement.remove()" style="background: none; border: none; cursor: pointer; font-size: 1.2rem; color: var(--danger, #e74c3c);">✕</button>
+    `;
+    container.appendChild(row);
+}
+
+async function handleAvailabilitySave(event) {
+    event.preventDefault();
+    if (!currentUser?.tenant) {
+        showToast('No tenant associated', 'error');
+        return;
+    }
+
+    const timezone = document.getElementById('availTimezone').value;
+    const sessionDuration = parseInt(document.getElementById('availSessionDuration').value);
+
+    const availableDays = [];
+    document.querySelectorAll('input[name="availDay"]:checked').forEach(cb => {
+        availableDays.push(cb.value);
+    });
+
+    const availableHours = [];
+    document.querySelectorAll('#availHoursContainer > div').forEach(row => {
+        const start = row.querySelector('.avail-start')?.value;
+        const end = row.querySelector('.avail-end')?.value;
+        if (start && end) {
+            availableHours.push({ startTime: start, endTime: end });
+        }
+    });
+
+    try {
+        await apiCall(`/admin/availability`, {
+            method: 'PUT',
+            body: JSON.stringify({ timezone, sessionDuration, availableDays, availableHours }),
+        });
+        showToast('Availability saved successfully', 'success');
+    } catch (error) {
+        showToast('Failed to save availability: ' + error.message, 'error');
     }
 }
 

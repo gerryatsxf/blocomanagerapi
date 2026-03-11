@@ -14,9 +14,11 @@ import { TenantModule } from '../tenant/tenant.module';
 import { AdminMeetingController } from './admin-meeting.controller';
 import { AdminBookingController } from './admin-booking.controller';
 import { AdminContactController } from './admin-contact.controller';
+import { AdminAvailabilityController } from './admin-availability.controller';
 import { MeetingModule } from '../meeting/meeting.module';
 import { CalendarModule } from '../calendar/calendar.module';
 import { BookingModule } from '../booking/booking.module';
+import { AvailabilityModule } from '../availability/availability.module';
 import { CRMContactSchema } from './schemas/contact.schema';
 
 @Module({
@@ -35,8 +37,9 @@ import { CRMContactSchema } from './schemas/contact.schema';
     MeetingModule,
     CalendarModule,
     BookingModule,
+    AvailabilityModule,
   ],
-  controllers: [AdminController, AdminMeetingController, AdminBookingController, AdminContactController],
+  controllers: [AdminController, AdminMeetingController, AdminBookingController, AdminContactController, AdminAvailabilityController],
   providers: [AdminService, SuperAdminGuard],
   exports: [AdminService],
 })

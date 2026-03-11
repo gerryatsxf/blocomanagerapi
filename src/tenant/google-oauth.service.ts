@@ -56,6 +56,15 @@ export class GoogleOAuthService {
    */
   async storeTokensForTenant(tenantId: string, tokens: any, userEmail: string, grantId?: string) {
     const storageKey = this.getStorageKey(tenantId, userEmail);
+
+    // Enforce single Google account per tenant
+    const existingTokens = await this.googleOAuthTokenModel.find({ tenantId }).exec();
+    if (existingTokens.length > 0 && !existingTokens.some(t => t.userEmail === userEmail)) {
+      throw new Error(
+        `Tenant already has Google Calendar connected with ${existingTokens[0].userEmail}. ` +
+        `Please disconnect the existing account first before connecting a different one.`
+      );
+    }
     
     console.log(`🔍 DEBUG - storeTokensForTenant called with:`, {
       tenantId,
@@ -95,42 +104,6 @@ export class GoogleOAuthService {
     });
     
     console.log(`🔐 Stored tokens for tenant ${tenantId} with provider ${userEmail} in MongoDB`);
-  }
-
-  /**
-   * Get stored grant ID for a tenant (uses first authenticated provider for now)
-   * NOTE: This method is kept for potential future Nylas integration but currently unused
-   * We're now using Google Calendar API directly instead of Nylas
-   */
-  async getStoredGrantId(tenantId: string, providerEmail?: string): Promise<string | null> {
-    // DEPRECATED: Using Google Calendar API directly instead of Nylas grants
-    console.log(`⚠️ getStoredGrantId called but we're using Google Calendar API directly now`);
-    return null;
-    
-    /* KEPT FOR FUTURE NYLAS INTEGRATION:
-    if (providerEmail) {
-      // Get grant for specific provider
-      const storageKey = this.getStorageKey(tenantId, providerEmail);
-      const tenantData = this.tenantTokens.get(storageKey);
-      
-      if (tenantData) {
-        const mainGrantId = this.configService.get<string>('NYLAS_MAIN_ACCOUNT_GRANT_ID');
-        console.log(`🔑 Using main grant ID for tenant ${tenantId} provider ${providerEmail}: ${mainGrantId}`);
-        return mainGrantId;
-      }
-    } else {
-      // Get grant for any authenticated provider for this tenant
-      for (const [key, data] of this.tenantTokens.entries()) {
-        if (data.tenantId === tenantId) {
-          const mainGrantId = this.configService.get<string>('NYLAS_MAIN_ACCOUNT_GRANT_ID');
-          console.log(`🔑 Using main grant ID for tenant ${tenantId} (any provider): ${mainGrantId}`);
-          return mainGrantId;
-        }
-      }
-    }
-    
-    return null;
-    */
   }
 
   /**
@@ -431,7 +404,7 @@ export class GoogleOAuthService {
     const client = new google.auth.OAuth2(
       this.configService.get<string>('GOOGLE_EMAIL_CLIENT_ID'),
       this.configService.get<string>('GOOGLE_EMAIL_CLIENT_SECRET'),
-      this.configService.get<string>('GOOGLE_REDIRECT_URI'),
+      this.configService.get<string>('GOOGLE_EMAIL_REDIRECT_URI'),
     );
 
     client.setCredentials({
@@ -467,7 +440,7 @@ export class GoogleOAuthService {
       const client = new google.auth.OAuth2(
         this.configService.get<string>('GOOGLE_EMAIL_CLIENT_ID'),
         this.configService.get<string>('GOOGLE_EMAIL_CLIENT_SECRET'),
-        this.configService.get<string>('GOOGLE_REDIRECT_URI'),
+        this.configService.get<string>('GOOGLE_EMAIL_REDIRECT_URI'),
       );
 
       // Google OAuth2 client expects snake_case property names
@@ -577,7 +550,7 @@ export class GoogleOAuthService {
           const client = new google.auth.OAuth2(
             this.configService.get<string>('GOOGLE_EMAIL_CLIENT_ID'),
             this.configService.get<string>('GOOGLE_EMAIL_CLIENT_SECRET'),
-            this.configService.get<string>('GOOGLE_REDIRECT_URI'),
+            this.configService.get<string>('GOOGLE_EMAIL_REDIRECT_URI'),
           );
           
           client.setCredentials({

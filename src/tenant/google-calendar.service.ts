@@ -13,9 +13,9 @@ export class GoogleCalendarService {
    */
   private createOAuth2Client(tokens: any) {
     const oauth2Client = new google.auth.OAuth2(
-      this.configService.get<string>('GOOGLE_CLIENT_ID'),
-      this.configService.get<string>('GOOGLE_CLIENT_SECRET'),
-      this.configService.get<string>('GOOGLE_REDIRECT_URI')
+      this.configService.get<string>('GOOGLE_EMAIL_CLIENT_ID'),
+      this.configService.get<string>('GOOGLE_EMAIL_CLIENT_SECRET'),
+      this.configService.get<string>('GOOGLE_EMAIL_REDIRECT_URI')
     );
 
     oauth2Client.setCredentials({

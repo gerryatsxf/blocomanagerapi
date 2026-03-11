@@ -79,7 +79,8 @@ export class BookingService {
     sessionInfo: ISession,
   ) {
     // Check if slot is not free
-    const freeSlotsData = await this.freeSlotService.getFreeSlots();
+    const tenantId = sessionInfo?.tenant || 'blocomanager';
+    const freeSlotsData = await this.freeSlotService.getFreeSlots(tenantId);
     const isSlotFree = freeSlotsData.freeSlots.some(
       (slot: GuestFreeSlotDto) =>
         slot.meetingStartTime === bookRequest.timestamp,

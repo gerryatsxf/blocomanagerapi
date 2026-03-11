@@ -23,7 +23,7 @@ export class Meeting {
   @Prop({ required: true, index: true })
   tenantId: string;
 
-  @Prop({ required: true, enum: ['google', 'outlook', 'nylas'] })
+  @Prop({ required: true, enum: ['google', 'outlook'] })
   provider: string;
 
   @Prop({ index: true })

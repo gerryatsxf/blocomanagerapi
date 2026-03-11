@@ -11,13 +11,14 @@ import { TenantPublicController } from './tenant-public.controller';
 import { ProductModule } from '../product/product.module';
 import { CalendarModule } from '../calendar/calendar.module';
 import { User, UserSchema } from '../users/entities/user.entity';
-// NOTE: NylasModule kept available for future use but not imported here
+import { Tenant, TenantSchema } from './schemas/tenant.schema';
 
 @Module({
   imports: [
     MongooseModule.forFeature([
       { name: GoogleOAuthToken.name, schema: GoogleOAuthTokenSchema },
       { name: User.name, schema: UserSchema },
+      { name: Tenant.name, schema: TenantSchema },
     ]),
     ProductModule,
     forwardRef(() => CalendarModule),

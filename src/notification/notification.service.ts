@@ -1,7 +1,6 @@
 import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SendNotificationRequestDto } from './dto/send-notification-request.dto';
-import { NylasService } from '../nylas/nylas.service';
 import { GoogleOAuthService } from '../tenant/google-oauth.service';
 import { google } from 'googleapis';
 
@@ -9,7 +8,6 @@ import { google } from 'googleapis';
 export class NotificationService {
   constructor(
     private configService: ConfigService,
-    private nylasService: NylasService,
     @Inject(forwardRef(() => GoogleOAuthService))
     private googleOAuthService: GoogleOAuthService,
   ) {

@@ -1,7 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { CalendarService } from './calendar.service';
 import { CalendarController } from './calendar.controller';
-import { NylasModule } from '../nylas/nylas.module';
 import { CalendarWebhookController } from './calendar-webhook.controller';
 import { CalendarProviderFactory } from './services/calendar-provider.factory';
 import { WebhookSubscriptionService } from './services/webhook-subscription.service';
@@ -10,7 +9,6 @@ import { MeetingModule } from '../meeting/meeting.module';
 
 @Module({
   imports: [
-    NylasModule, 
     forwardRef(() => TenantModule),
     forwardRef(() => MeetingModule),
   ],

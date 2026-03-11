@@ -1,11 +1,9 @@
 import { Module } from '@nestjs/common';
 import { BookingService } from './booking.service';
 import { HttpModule } from '@nestjs/axios';
-import { FreeSlotService } from '../free-slot/free-slot.service';
 import { FreeSlotModule } from '../free-slot/free-slot.module';
 import { MongooseModule } from '@nestjs/mongoose';
 import { BookingSchema } from '../booking/entities/booking.schema';
-import { AvailabilityService } from '../availability/availability.service';
 import { AvailabilityModule } from '../availability/availability.module';
 import { CalendarModule } from '../calendar/calendar.module';
 import { BookingController } from './booking.controller';
@@ -30,13 +28,12 @@ import { TenantModule } from '../tenant/tenant.module';
   ],
   exports: [
     HttpModule,
+    BookingService,
     MongooseModule, // Export MongooseModule so BookingModel is available in other modules
   ],
   controllers: [BookingController],
   providers: [
     BookingService,
-    FreeSlotService,
-    AvailabilityService,
     SessionService,
     EncryptionService,
   ],

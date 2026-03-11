@@ -7,10 +7,7 @@ import { StripeSessionCompletedDto } from './dto/stripe-session-completed.dto';
 import { MeetingService } from '../meeting/meeting.service';
 import { BookingService } from '../booking/booking.service';
 import { IBooking } from '../booking/entities/booking.interface';
-import { CalendarService } from '../calendar/calendar.service';
-import { ScheduleEventParamsDto } from '../calendar/dto/schedule-event-params.dto';
 import { SessionService } from '../session/session.service';
-import { NylasService } from '../nylas/nylas.service';
 import { CreateMeetingResultDto } from 'src/meeting/dto/create-meeting-result.dto';
 import { TenantService } from '../tenant/tenant.service';
 import { GoogleCalendarService } from '../tenant/google-calendar.service';
@@ -27,9 +24,7 @@ export class PaymentService {
     private notificationService: NotificationService,
     private readonly bookingService: BookingService,
     private readonly meetingService: MeetingService,
-    private readonly calendarService: CalendarService,
     private readonly sessionService: SessionService,
-    private readonly nylasService: NylasService,
     private readonly tenantService: TenantService,
     private readonly googleCalendarService: GoogleCalendarService,
     private readonly googleOAuthService: GoogleOAuthService,
