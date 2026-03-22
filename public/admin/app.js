@@ -6,6 +6,22 @@ let currentPage = 1;
 let grantTimer = null;
 let grantExpiresAt = null;
 
+// Confirmation Modal
+function showConfirmModal(message, title = 'Confirm Action') {
+    return new Promise((resolve) => {
+        document.getElementById('confirmModalTitle').textContent = title;
+        document.getElementById('confirmModalMessage').textContent = message;
+        const modal = document.getElementById('confirmModal');
+        const btn = document.getElementById('confirmModalBtn');
+        modal.style.display = 'flex';
+        const cleanup = () => { modal.style.display = 'none'; btn.replaceWith(btn.cloneNode(true)); };
+        document.getElementById('confirmModalBtn').addEventListener('click', () => { cleanup(); resolve(true); });
+        modal.addEventListener('click', (e) => { if (e.target === modal) { cleanup(); resolve(false); } }, { once: true });
+        window._closeConfirmModal = () => { cleanup(); resolve(false); };
+    });
+}
+function closeConfirmModal() { if (window._closeConfirmModal) window._closeConfirmModal(); }
+
 // Toast Notification System
 function showToast(message, type = 'info', title = null) {
     const container = document.getElementById('toastContainer');
@@ -52,6 +68,7 @@ const usersView = document.getElementById('usersView');
 const tenantsView = document.getElementById('tenantsView');
 const productsView = document.getElementById('productsView');
 const settingsView = document.getElementById('settingsView');
+const googleGrantsView = document.getElementById('googleGrantsView');
 const sidebar = document.querySelector('.sidebar');
 const mainContent = document.querySelector('.main-content');
 
@@ -418,6 +435,7 @@ function switchView(view) {
         tenants: 'Tenant Management',
         tenantDetail: 'Tenant Details',
         products: 'Product Management',
+        googleGrants: 'Google OAuth Grants',
         settings: 'Settings',
     };
     document.getElementById('pageTitle').textContent = titles[view] || 'Admin Panel';
@@ -431,6 +449,7 @@ function switchView(view) {
         tenantDetailView.style.display = view === 'tenantDetail' ? 'block' : 'none';
     }
     productsView.style.display = view === 'products' ? 'block' : 'none';
+    googleGrantsView.style.display = view === 'googleGrants' ? 'block' : 'none';
     settingsView.style.display = view === 'settings' ? 'block' : 'none';
     
     // Load data
@@ -446,6 +465,9 @@ function switchView(view) {
             break;
         case 'products':
             loadProducts();
+            break;
+        case 'googleGrants':
+            loadGoogleGrants();
             break;
         case 'settings':
             loadSettings();
@@ -720,7 +742,7 @@ async function handleUserSubmit(event) {
 }
 
 async function deleteUser(userId, email) {
-    if (!confirm(`Are you sure you want to delete user ${email}? This action cannot be undone.`)) {
+    if (!await showConfirmModal(`Are you sure you want to delete user ${email}? This action cannot be undone.`, 'Delete User')) {
         return;
     }
     
@@ -984,7 +1006,7 @@ async function handleAddTenantAdmin(event) {
 }
 
 async function removeTenantAdmin(tenantId, userId, email) {
-    if (!confirm(`Remove ${email} from tenant admin role?`)) {
+    if (!await showConfirmModal(`Remove ${email} from tenant admin role?`, 'Remove Admin')) {
         return;
     }
     
@@ -1125,7 +1147,7 @@ async function handleUndeploy() {
     const undeployBtn = document.getElementById('undeployBtn');
     const tenantId = undeployBtn.dataset.tenantId;
     
-    if (!confirm(`Are you sure you want to undeploy the frontend for this tenant? This will make the frontend inaccessible to users.`)) {
+    if (!await showConfirmModal('Are you sure you want to undeploy the frontend for this tenant? This will make the frontend inaccessible to users.', 'Undeploy Frontend')) {
         return;
     }
     
@@ -1334,7 +1356,7 @@ async function toggleProductActive(productId) {
 }
 
 async function deleteProduct(productId) {
-    if (!confirm('Are you sure you want to permanently delete this product? This action cannot be undone.')) {
+    if (!await showConfirmModal('Are you sure you want to permanently delete this product? This action cannot be undone.', 'Delete Product')) {
         return;
     }
     
@@ -1432,7 +1454,7 @@ async function handleBulkDeleteUsers() {
         return;
     }
     
-    const confirmed = confirm(`Are you sure you want to delete ${userIds.length} user(s)? This action cannot be undone.`);
+    const confirmed = await showConfirmModal(`Are you sure you want to delete ${userIds.length} user(s)? This action cannot be undone.`, 'Bulk Delete Users');
     if (!confirmed) return;
     
     try {
@@ -1471,6 +1493,67 @@ async function handleBulkDeleteUsers() {
     } catch (error) {
         console.error('Bulk delete failed:', error);
         showToast('Failed to delete users: ' + error.message, 'error');
+    }
+}
+
+// ==================== GOOGLE GRANTS ====================
+
+async function loadGoogleGrants() {
+    const tbody = document.getElementById('googleGrantsTableBody');
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;">Loading...</td></tr>';
+
+    try {
+        const grants = await apiCall('/admin/google-grants');
+
+        if (grants.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color: var(--text-secondary);">No Google OAuth grants found</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = grants.map(grant => {
+            const connectedDate = new Date(grant.connectedAt).toLocaleDateString();
+            const expiresDate = new Date(grant.expiresAt).toLocaleDateString();
+
+            let badgeClass, badgeLabel;
+            if (grant.status === 'expired') {
+                badgeClass = 'badge-danger';
+                badgeLabel = '● Expired';
+            } else if (grant.status === 'expiring_soon') {
+                badgeClass = 'badge-warning';
+                badgeLabel = '● Expiring Soon';
+            } else {
+                badgeClass = 'badge-success';
+                badgeLabel = '● Active';
+            }
+
+            return `<tr>
+                <td>${grant.tenantId}</td>
+                <td>${grant.userEmail}</td>
+                <td>${connectedDate}</td>
+                <td>${expiresDate}</td>
+                <td>${grant.hoursLeft}h</td>
+                <td><span class="badge ${badgeClass}">${badgeLabel}</span></td>
+                <td>
+                    <button class="btn btn-danger btn-sm" onclick="deleteGoogleGrant('${grant._id}', '${grant.tenantId}')">Delete</button>
+                </td>
+            </tr>`;
+        }).join('');
+    } catch (error) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color: red;">Error loading grants: ${error.message}</td></tr>`;
+    }
+}
+
+async function deleteGoogleGrant(grantId, tenantId) {
+    if (!await showConfirmModal(`Delete Google OAuth grant for tenant "${tenantId}"? The tenant will need to reconnect their Google account.`, 'Delete Grant')) {
+        return;
+    }
+
+    try {
+        await apiCall(`/admin/google-grants/${grantId}`, { method: 'DELETE' });
+        showToast('Google OAuth grant deleted successfully', 'success');
+        loadGoogleGrants();
+    } catch (error) {
+        showToast('Failed to delete grant: ' + error.message, 'error');
     }
 }
 
@@ -1521,7 +1604,7 @@ async function handleGoogleEmailSetup() {
 }
 
 async function handleGoogleEmailDisconnect() {
-    if (!confirm('Are you sure you want to disconnect your Google account?')) {
+    if (!await showConfirmModal('Are you sure you want to disconnect your Google account?', 'Disconnect Google')) {
         return;
     }
     

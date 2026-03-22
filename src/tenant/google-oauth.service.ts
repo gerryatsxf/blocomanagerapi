@@ -375,20 +375,19 @@ export class GoogleOAuthService {
    * Disconnect Google OAuth for tenant
    */
   async disconnectGoogle(tenantId: string): Promise<void> {
+    // Revoke tokens with Google (best-effort, don't block on failure)
     try {
-      // Revoke tokens and remove from storage
       const storedAuth = await this.getStoredGoogleTokens(tenantId);
-      
       if (storedAuth && storedAuth.accessToken) {
-        // Revoke the token with Google
         await this.oauth2Client.revokeToken(storedAuth.accessToken);
       }
-
-      // Remove from database (you'll need to implement this)
-      await this.removeStoredGoogleTokens(tenantId);
     } catch (error) {
-      throw new Error(`Failed to disconnect Google account: ${error.message}`);
+      // Token may already be expired/revoked — that's fine, continue cleanup
+      console.warn(`Token revocation failed (may already be expired): ${error.message}`);
     }
+
+    // Always remove from database regardless of revocation result
+    await this.removeStoredGoogleTokens(tenantId);
   }
 
   /**
@@ -477,6 +476,30 @@ export class GoogleOAuthService {
       console.error('   Stack:', error.stack);
       return null;
     }
+  }
+
+  /**
+   * Get all Google OAuth grants (for super admin dashboard)
+   */
+  async getAllGoogleGrants(): Promise<GoogleOAuthTokenDocument[]> {
+    return this.googleOAuthTokenModel.find().exec();
+  }
+
+  /**
+   * Delete a Google OAuth grant by ID (for super admin cleanup)
+   */
+  async deleteGoogleGrant(grantId: string): Promise<void> {
+    const grant = await this.googleOAuthTokenModel.findById(grantId).exec();
+    if (!grant) {
+      throw new Error('Grant not found');
+    }
+    // Clear cache
+    for (const [key, value] of this.tokenCache.entries()) {
+      if (value.tenantId === grant.tenantId) {
+        this.tokenCache.delete(key);
+      }
+    }
+    await this.googleOAuthTokenModel.findByIdAndDelete(grantId).exec();
   }
 
   // TODO: Implement these methods with your database

@@ -59,7 +59,7 @@ async function setSuperAdmin(email) {
     }
 
     console.log('\n🎉 Success! You can now login to the admin panel at:');
-    console.log('   http://localhost:3002/public/admin/index.html');
+    console.log('   http://localhost:3002/admin/panel');
 
   } catch (error) {
     console.error('❌ Error:', error.message);

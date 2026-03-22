@@ -162,7 +162,7 @@ export class VideoCallService {
         displayName: att.name,
       }));
 
-      const event = {
+      const event: any = {
         summary: config.title,
         description: config.description,
         start: {
@@ -176,17 +176,36 @@ export class VideoCallService {
         attendees: attendeesList,
       };
 
-      const response = await calendar.events.update({
+      // Add conference data to generate a Meet link if not skipping
+      if (!config.skipConference) {
+        event.conferenceData = {
+          createRequest: {
+            requestId: `meet-update-${Date.now()}`,
+            conferenceSolutionKey: {
+              type: 'hangoutsMeet',
+            },
+          },
+        };
+      }
+
+      const updateOptions: any = {
         calendarId: 'primary',
         eventId: eventId,
         requestBody: event,
         sendUpdates: 'all',
-      });
+      };
+
+      // Only set conferenceDataVersion if we're creating a conference
+      if (!config.skipConference) {
+        updateOptions.conferenceDataVersion = 1;
+      }
+
+      const response = await calendar.events.update(updateOptions);
 
       const updatedEvent = response.data;
 
       return {
-        meetLink: updatedEvent.hangoutLink || '',
+        meetLink: updatedEvent.hangoutLink || undefined,
         eventId: updatedEvent.id,
         htmlLink: updatedEvent.htmlLink,
       };

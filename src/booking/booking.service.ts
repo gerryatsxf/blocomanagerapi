@@ -78,15 +78,26 @@ export class BookingService {
     bookRequest: CreateBookingRequestDto,
     sessionInfo: ISession,
   ) {
+    console.log(`📋 [Booking] === START VALIDATION ===`);
+    console.log(`📋 [Booking] Session ID: ${sessionInfo.id}`);
+    console.log(`📋 [Booking] Session tenant: ${sessionInfo?.tenant}`);
+    console.log(`📋 [Booking] Session tenantVisitorStatus: ${sessionInfo.tenantVisitorStatus}`);
+    console.log(`📋 [Booking] Session status: ${sessionInfo.status}`);
+    console.log(`📋 [Booking] Requested timestamp: ${bookRequest.timestamp}`);
+    console.log(`📋 [Booking] Requested type: ${bookRequest.type}`);
+
     // Check if slot is not free
     const tenantId = sessionInfo?.tenant || 'blocomanager';
     const freeSlotsData = await this.freeSlotService.getFreeSlots(tenantId);
+    console.log(`📋 [Booking] Free slots count: ${freeSlotsData.freeSlots.length}`);
+    console.log(`📋 [Booking] Free slot timestamps: ${freeSlotsData.freeSlots.map((s: GuestFreeSlotDto) => s.meetingStartTime).join(', ')}`);
     const isSlotFree = freeSlotsData.freeSlots.some(
       (slot: GuestFreeSlotDto) =>
         slot.meetingStartTime === bookRequest.timestamp,
     );
+    console.log(`📋 [Booking] Is slot free: ${isSlotFree}`);
     if (!isSlotFree) {
-      // REJECT if slot is not free
+      console.log(`❌ [Booking] REJECTED: Time slot is not free`);
       throw new BadRequestException(
         'Time slot is already busy at requested time',
       );
@@ -96,24 +107,26 @@ export class BookingService {
     const booking: IBooking = await this.bookingModel.findOne({
       bookingStartTimestamp: bookRequest.timestamp,
     });
+    console.log(`📋 [Booking] Existing booking for this slot: ${booking ? `ID=${booking.id}, status=${booking.status}, expiry=${booking.paymentExpirationTimestamp}` : 'none'}`);
 
     if (booking && booking.status == PaymentStatusEnum.Paid) {
-      // REJECT if found booking is paid
+      console.log(`❌ [Booking] REJECTED: Confirmed booking exists`);
       throw new BadRequestException(
         'Confirmed booking already exists at requested time slot',
       );
     } else if (booking && booking.status == PaymentStatusEnum.Pending) {
-      if (booking.paymentExpirationTimestamp <= new Date().getTime()) {
-        // REJECT if found booking is still waiting for payment
+      const now = new Date().getTime();
+      console.log(`📋 [Booking] Pending booking check: expiry=${booking.paymentExpirationTimestamp}, now=${now}, expired=${booking.paymentExpirationTimestamp <= now}`);
+      if (booking.paymentExpirationTimestamp > now) {
+        console.log(`❌ [Booking] REJECTED: Pending booking still within payment window`);
         throw new BadRequestException(
           'Pending booking already exists at requested time slot',
         );
       } else {
-        // Don't reject if found booking expiration time is overdue, and update its status to stale
+        console.log(`📋 [Booking] Marking expired pending booking as stale`);
         await this.bookingModel.findByIdAndUpdate(booking.id, {
           status: PaymentStatusEnum.Stale,
         });
-        // Update session status of found stale booking
         await this.sessionService
           .findOne(booking.sessionId)
           .then(async (session) => {
@@ -124,11 +137,45 @@ export class BookingService {
       }
     }
 
+    // If the current session was previously set to PROCESSING from an expired/stale booking,
+    // reset it back to LEAD so they can book again
+    if (sessionInfo.tenantVisitorStatus === TenantVisitorStatus.PROCESSING) {
+      console.log(`📋 [Booking] Session is PROCESSING, checking for active pending bookings...`);
+      const existingBooking = await this.bookingModel.findOne({
+        sessionId: sessionInfo.id,
+        status: PaymentStatusEnum.Pending,
+      });
+      console.log(`📋 [Booking] Existing booking for this session: ${existingBooking ? `ID=${existingBooking.id}, expiry=${existingBooking.paymentExpirationTimestamp}` : 'none'}`);
+      if (!existingBooking || existingBooking.paymentExpirationTimestamp <= new Date().getTime()) {
+        console.log(`📋 [Booking] Resetting session back to LEAD`);
+        if (existingBooking) {
+          await this.bookingModel.findByIdAndUpdate(existingBooking.id, {
+            status: PaymentStatusEnum.Stale,
+          });
+        }
+        const updateSession = new UpdateSessionRequestDto();
+        updateSession.tenantVisitorStatus = TenantVisitorStatus.LEAD;
+        await this.sessionService.update(sessionInfo.id, updateSession);
+        sessionInfo.tenantVisitorStatus = TenantVisitorStatus.LEAD;
+      }
+    }
+
+    // Initialize tenantVisitorStatus to LEAD if not set
+    if (!sessionInfo.tenantVisitorStatus) {
+      console.log(`📋 [Booking] tenantVisitorStatus is undefined, setting to LEAD`);
+      const updateSession = new UpdateSessionRequestDto();
+      updateSession.tenantVisitorStatus = TenantVisitorStatus.LEAD;
+      await this.sessionService.update(sessionInfo.id, updateSession);
+      sessionInfo.tenantVisitorStatus = TenantVisitorStatus.LEAD;
+    }
+
     // Check session status
+    console.log(`📋 [Booking] Final tenantVisitorStatus: ${sessionInfo.tenantVisitorStatus}`);
     if (sessionInfo.tenantVisitorStatus !== TenantVisitorStatus.LEAD) {
-      // REJECT if customer/session is not a lead
+      console.log(`❌ [Booking] REJECTED: Customer is no longer a lead (status: ${sessionInfo.tenantVisitorStatus})`);
       throw new BadRequestException('Customer is no longer a lead');
     }
+    console.log(`✅ [Booking] All validations passed`);
   }
 
   async saveBooking(
@@ -138,6 +185,7 @@ export class BookingService {
     const meetingDurationTime = 50 * 60; // 50 minutes in seconds
     const paymentExpirationTime = 5 * 60; // 5 minutes in seconds
     const newBooking: Partial<IBooking> = {
+      tenantId: sessionInfo?.tenant || 'blocomanager',
       meetingStartTimestamp: bookRequest.timestamp,
       meetingEndTimestamp: bookRequest.timestamp + meetingDurationTime,
       sessionId: sessionInfo.id,
@@ -146,6 +194,9 @@ export class BookingService {
       paymentExpirationTimestamp:
         Math.ceil(new Date().getTime() / 1000) + paymentExpirationTime,
       guestTimezone: sessionInfo.timezone,
+      customerName: bookRequest.customerName,
+      customerEmail: bookRequest.customerEmail,
+      title: `${bookRequest.type === 'consultancy' ? 'Consultancy' : 'Tutoring'} Session`,
     };
     const booking = new this.bookingModel(newBooking);
     await booking.save();

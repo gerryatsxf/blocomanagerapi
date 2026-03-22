@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BlocoManager Admin Panel</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="/public/admin/styles.css">
 </head>
 <body>
     <div class="admin-container">
@@ -18,6 +18,7 @@
                 <button class="nav-btn" data-view="users">Users</button>
                 <button class="nav-btn" data-view="tenants">Tenants</button>
                 <button class="nav-btn" data-view="products">Products</button>
+                <button class="nav-btn" data-view="googleGrants">Google Grants</button>
                 <button class="nav-btn" data-view="settings">Settings</button>
             </nav>
             <div class="sidebar-footer">
@@ -323,6 +324,40 @@
                 </div>
             </div>
 
+            <!-- Google Grants View -->
+            <div id="googleGrantsView" class="view" style="display: none;">
+                <div class="view-header">
+                    <h2>Google OAuth Grants</h2>
+                    <div>
+                        <button class="btn btn-primary" id="refreshGrants" onclick="loadGoogleGrants()">↻ Refresh</button>
+                    </div>
+                </div>
+                <div class="card" style="margin-bottom: 1.5rem; padding: 1rem;">
+                    <p style="color: var(--text-secondary); margin: 0;">
+                        ⚠️ <strong>GCP Testing Mode:</strong> Google OAuth refresh tokens expire after <strong>7 days</strong>. 
+                        Tenants must reconnect their Google account before the grant expires.
+                    </p>
+                </div>
+                <div class="card">
+                    <div class="table-container">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Tenant</th>
+                                    <th>Email</th>
+                                    <th>Connected</th>
+                                    <th>Expires</th>
+                                    <th>Hours Left</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="googleGrantsTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
             <!-- Settings View -->
             <div id="settingsView" class="view" style="display: none;">
                 <div class="view-header">
@@ -390,9 +425,26 @@
         </div>
     </div>
 
+    <!-- Confirmation Modal -->
+    <div id="confirmModal" class="modal">
+        <div class="modal-content" style="max-width: 420px;">
+            <div class="modal-header">
+                <h3 id="confirmModalTitle">Confirm Action</h3>
+                <button class="modal-close" onclick="closeConfirmModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p id="confirmModalMessage" style="margin: 0 0 1.5rem 0;"></p>
+                <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                    <button class="btn btn-secondary" onclick="closeConfirmModal()">Cancel</button>
+                    <button class="btn btn-danger" id="confirmModalBtn">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast Notification Container -->
     <div class="toast-container" id="toastContainer"></div>
 
-    <script src="app.js"></script>
+    <script src="/public/admin/app.js"></script>
 </body>
 </html>

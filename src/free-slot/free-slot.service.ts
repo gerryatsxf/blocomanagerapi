@@ -55,12 +55,22 @@ export class FreeSlotService {
     };
 
     // Get busy slots using Google Calendar API
-    const freeBusyData = await this.googleCalendarService.getFreeBusy(
-      providerTokens,
-      new Date(startTime * 1000),
-      new Date(endTime * 1000),
-      [tokenData.userEmail],
-    );
+    let freeBusyData;
+    try {
+      freeBusyData = await this.googleCalendarService.getFreeBusy(
+        providerTokens,
+        new Date(startTime * 1000),
+        new Date(endTime * 1000),
+        [tokenData.userEmail],
+      );
+    } catch (error) {
+      if (error.message?.includes('invalid_grant')) {
+        throw new BadRequestException(
+          'Google Calendar authorization has expired. The provider needs to reconnect their Google account.',
+        );
+      }
+      throw error;
+    }
 
     // Parse Google Calendar freebusy response (convert ISO strings to Unix timestamps)
     const busySlots: BusySlotDto[] = [];

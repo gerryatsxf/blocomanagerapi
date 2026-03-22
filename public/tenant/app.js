@@ -1,5 +1,21 @@
 // API Configuration
 const API_BASE = window.location.origin;
+
+// Confirmation Modal
+function showConfirmModal(message, title = 'Confirm Action') {
+    return new Promise((resolve) => {
+        document.getElementById('confirmModalTitle').textContent = title;
+        document.getElementById('confirmModalMessage').textContent = message;
+        const modal = document.getElementById('confirmModal');
+        const btn = document.getElementById('confirmModalBtn');
+        modal.style.display = 'flex';
+        const cleanup = () => { modal.style.display = 'none'; btn.replaceWith(btn.cloneNode(true)); };
+        document.getElementById('confirmModalBtn').addEventListener('click', () => { cleanup(); resolve(true); });
+        modal.addEventListener('click', (e) => { if (e.target === modal) { cleanup(); resolve(false); } }, { once: true });
+        window._closeConfirmModal = () => { cleanup(); resolve(false); };
+    });
+}
+function closeConfirmModal() { if (window._closeConfirmModal) window._closeConfirmModal(); }
 let authToken = localStorage.getItem('tenantToken');
 let currentTenant = null;
 let currentUser = null;
@@ -666,7 +682,7 @@ async function handleContactSubmit(event) {
 }
 
 async function deleteContact(contactId) {
-    if (!confirm('Are you sure you want to delete this contact?')) {
+    if (!await showConfirmModal('Are you sure you want to delete this contact?', 'Delete Contact')) {
         return;
     }
 
@@ -1267,7 +1283,7 @@ async function handleUpdateBooking(bookingId) {
 }
 
 async function deleteBooking(bookingId) {
-    if (!confirm('Are you sure you want to delete this booking?')) {
+    if (!await showConfirmModal('Are you sure you want to delete this booking?', 'Delete Booking')) {
         return;
     }
 
@@ -1486,7 +1502,7 @@ async function connectGoogleCalendar() {
 }
 
 async function disconnectGoogleCalendar() {
-    if (!confirm('Are you sure you want to disconnect Google Calendar? Automatic sync will stop.')) {
+    if (!await showConfirmModal('Are you sure you want to disconnect Google Calendar? Automatic sync will stop.', 'Disconnect Calendar')) {
         return;
     }
 

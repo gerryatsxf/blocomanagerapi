@@ -47,17 +47,17 @@ export const BookingSchema = new mongoose.Schema({
   },
   customerName: {
     type: String,
-    required: true,
+    required: false,
     description: 'Guest/customer name',
   },
   customerEmail: {
     type: String,
-    required: true,
+    required: false,
     description: 'Guest/customer email',
   },
   title: {
     type: String,
-    required: true,
+    required: false,
     description: 'Booking title',
   },
   description: {

@@ -13,6 +13,18 @@ class CreateBookingRequestDto {
     enum: ['tutoring', 'consultancy'],
   })
   type: 'tutoring' | 'consultancy';
+
+  @ApiProperty({
+    description: 'Customer/guest name',
+    example: 'John Doe',
+  })
+  customerName: string;
+
+  @ApiProperty({
+    description: 'Customer/guest email',
+    example: 'john@example.com',
+  })
+  customerEmail: string;
 }
 
 export default CreateBookingRequestDto;

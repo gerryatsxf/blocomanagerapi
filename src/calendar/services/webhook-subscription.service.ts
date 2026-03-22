@@ -165,12 +165,41 @@ export class WebhookSubscriptionService {
         };
       }
 
-      // Find token document to check webhook expiration
+      // Find token document to check webhook expiration and grant expiry
       const tokenDocs = await this.googleOAuthService['googleOAuthTokenModel']
         .find({ tenantId, userEmail })
         .exec();
 
-      if (tokenDocs.length === 0 || !tokenDocs[0].webhookExpiration) {
+      if (tokenDocs.length === 0) {
+        return {
+          connected: false,
+          needsReconnection: true,
+          message: 'Not connected to Google Calendar',
+        };
+      }
+
+      const tokenDoc = tokenDocs[0];
+      const now = new Date();
+
+      // Check Google OAuth grant expiry (7 days in GCP Testing mode)
+      const GRANT_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
+      const grantExpiresAt = new Date(new Date(tokenDoc.connectedAt).getTime() + GRANT_LIFETIME_MS);
+      const grantExpired = now >= grantExpiresAt;
+      const hoursUntilGrantExpiry = (grantExpiresAt.getTime() - now.getTime()) / (1000 * 60 * 60);
+
+      if (grantExpired || hoursUntilGrantExpiry <= 48) {
+        return {
+          connected: !grantExpired,
+          expiresIn: Math.max(0, Math.round(hoursUntilGrantExpiry)),
+          expiration: grantExpiresAt,
+          needsReconnection: true,
+          message: grantExpired
+            ? 'Google grant expired (Testing mode 7-day limit). Please reconnect.'
+            : `Google grant expires in ${Math.round(hoursUntilGrantExpiry)} hours. Please reconnect soon.`,
+        };
+      }
+
+      if (!tokenDoc.webhookExpiration) {
         // In local development, webhooks require HTTPS and won't work
         // Calendar is still "connected" (tokens exist), just without real-time sync
         return {
@@ -179,9 +208,6 @@ export class WebhookSubscriptionService {
           message: 'Connected (webhooks require HTTPS for real-time sync)',
         };
       }
-
-      const tokenDoc = tokenDocs[0];
-      const now = new Date();
       const expiration = new Date(tokenDoc.webhookExpiration);
       const hoursUntilExpiration = (expiration.getTime() - now.getTime()) / (1000 * 60 * 60);
 

@@ -2,6 +2,7 @@ import { Controller, Get, Post, Req, Res, UseGuards, Logger, Query, Body, HttpEx
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { TenantGuard } from './guards/tenant.guard';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { GoogleOAuthService } from './google-oauth.service';
 import { GoogleCalendarService } from './google-calendar.service';
 import { ScheduleEventParamsDto } from '../calendar/dto/schedule-event-params.dto';
@@ -57,7 +58,7 @@ export class GoogleOAuthController {
     try {
       if (!code) {
         this.logger.error('No authorization code provided');
-        return res.redirect('/public/tenant/index.html?view=calendar&error=' + encodeURIComponent('Authorization code not provided'));
+        return res.redirect('/tenant/admin?view=calendar&error=' + encodeURIComponent('Authorization code not provided'));
       }
 
       // Extract tenant from state parameter
@@ -85,11 +86,11 @@ export class GoogleOAuthController {
       }
       
       // Redirect back to tenant admin panel live site page with success message
-      return res.redirect('/public/tenant/index.html?view=calendar&success=' + encodeURIComponent('Google account connected successfully'));
+      return res.redirect('/tenant/admin?view=calendar&success=' + encodeURIComponent('Google account connected successfully'));
       
     } catch (error) {
       this.logger.error(`Error in Google OAuth callback: ${error.message}`);
-      return res.redirect('/public/tenant/index.html?view=calendar&error=' + encodeURIComponent(error.message));
+      return res.redirect('/tenant/admin?view=calendar&error=' + encodeURIComponent(error.message));
     }
   }
 
@@ -116,10 +117,17 @@ export class GoogleOAuthController {
 
   /**
    * Disconnect Google OAuth
-   * DELETE /api/admin/auth/google/disconnect
+   * GET /api/admin/auth/google/disconnect
    */
   @Get('disconnect')
-  async disconnectGoogle(@Tenant() tenantId: string) {
+  @UseGuards(JwtAuthGuard)
+  async disconnectGoogle(@Req() request: Request) {
+    // Get tenant from JWT session (request.user is set by passport JWT)
+    // This avoids the @Tenant() decorator which resolves from origin domain
+    // and fails when accessed via ngrok or non-mapped domains
+    const session = request['user'];
+    const tenantId = session?.tenant;
+    this.logger.log(`Disconnect requested for tenant: ${tenantId} (session user: ${session?.userId})`);
     try {
       await this.googleOAuthService.disconnectGoogle(tenantId);
       return {
@@ -127,6 +135,7 @@ export class GoogleOAuthController {
         message: 'Google account disconnected successfully',
       };
     } catch (error) {
+      this.logger.error(`Disconnect failed for tenant ${tenantId}: ${error.message}`);
       return {
         success: false,
         message: 'Error disconnecting Google account',

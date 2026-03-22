@@ -16,6 +16,7 @@ import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { ProductService } from '../product/product.service';
 import { CreateProductDto } from '../product/dto/create-product.dto';
 import { UpdateProductDto } from '../product/dto/update-product.dto';
+import { GoogleOAuthService } from '../tenant/google-oauth.service';
 
 @ApiTags('Admin')
 @Controller('admin')
@@ -24,6 +25,7 @@ export class AdminController {
   constructor(
     private readonly adminService: AdminService,
     private readonly productService: ProductService,
+    private readonly googleOAuthService: GoogleOAuthService,
   ) {}
 
   // ==================== SUPER ADMIN GRANT (NO AUTH) ====================
@@ -403,5 +405,52 @@ export class AdminController {
   @ApiOperation({ summary: 'Permanently delete product (Super Admin only)' })
   async deleteProduct(@Param('id') id: string) {
     return this.productService.hardDelete(id);
+  }
+
+  // ==================== GOOGLE GRANTS ====================
+
+  @Get('google-grants')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List all Google OAuth grants with expiry status' })
+  async getGoogleGrants() {
+    const grants = await this.googleOAuthService.getAllGoogleGrants();
+    const GRANT_LIFETIME_MS = 7 * 24 * 60 * 60 * 1000;
+    const now = Date.now();
+
+    return grants.map(grant => {
+      const connectedAt = new Date(grant.connectedAt).getTime();
+      const expiresAt = connectedAt + GRANT_LIFETIME_MS;
+      const hoursLeft = (expiresAt - now) / (1000 * 60 * 60);
+
+      let status: string;
+      if (hoursLeft <= 0) {
+        status = 'expired';
+      } else if (hoursLeft <= 48) {
+        status = 'expiring_soon';
+      } else {
+        status = 'active';
+      }
+
+      return {
+        _id: grant._id,
+        tenantId: grant.tenantId,
+        userEmail: grant.userEmail,
+        connectedAt: grant.connectedAt,
+        expiresAt: new Date(expiresAt),
+        hoursLeft: Math.max(0, Math.round(hoursLeft)),
+        status,
+      };
+    });
+  }
+
+  @Delete('google-grants/:id')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Delete expired Google OAuth grant (Super Admin only)' })
+  async deleteGoogleGrant(@Param('id') id: string) {
+    await this.googleOAuthService.deleteGoogleGrant(id);
+    return { success: true, message: 'Google OAuth grant deleted' };
   }
 }

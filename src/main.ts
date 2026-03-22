@@ -39,6 +39,15 @@ async function bootstrap() {
     prefix: '/tenant/assets/',
   });
 
+  // Clean URL routes for admin panels
+  const expressApp = app.getHttpAdapter().getInstance();
+  expressApp.get('/tenant/admin', (req, res) => {
+    res.sendFile(join(__dirname, '..', 'public', 'tenant', 'index.html'));
+  });
+  expressApp.get('/admin/panel', (req, res) => {
+    res.sendFile(join(__dirname, '..', 'public', 'admin', 'index.html'));
+  });
+
   const config = new DocumentBuilder()
     .setTitle('BlocoManager API')
     .setDescription('Welcome to the BlocoManager API reference.')
@@ -116,7 +125,7 @@ async function bootstrap() {
 
   await app.listen(3002);
   console.log(`Application is running on: ${await app.getUrl()}`);
-  console.log(`Admin panel available at: ${await app.getUrl()}/public/admin/index.html`);
-  console.log(`Tenant panel available at: ${await app.getUrl()}/public/tenant/index.html`);
+  console.log(`Admin panel available at: ${await app.getUrl()}/admin/panel`);
+  console.log(`Tenant panel available at: ${await app.getUrl()}/tenant/admin`);
 }
 bootstrap();

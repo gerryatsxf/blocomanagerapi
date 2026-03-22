@@ -52,7 +52,7 @@ export class GoogleAuthController {
     try {
       // Extract panel from state parameter (default to admin)
       const panel = state === 'tenant' ? 'tenant' : 'admin';
-      const redirectBase = `/public/${panel}/index.html`;
+      const redirectBase = panel === 'tenant' ? '/tenant/admin' : '/admin/panel';
 
       if (error) {
         this.logger.error(`Google OAuth error: ${error}`);
@@ -73,7 +73,8 @@ export class GoogleAuthController {
     } catch (error) {
       this.logger.error(`Error in Google callback: ${error.message}`);
       const panel = state === 'tenant' ? 'tenant' : 'admin';
-      return res.redirect(`/public/${panel}/index.html?error=${encodeURIComponent(error.message)}`);
+      const errorRedirect = panel === 'tenant' ? '/tenant/admin' : '/admin/panel';
+      return res.redirect(`${errorRedirect}?error=${encodeURIComponent(error.message)}`);
     }
   }
 }
