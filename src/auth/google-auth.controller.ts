@@ -1,5 +1,6 @@
 import { Controller, Get, Req, Res, Query, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { GoogleAuthService } from './google-auth.service';
 
@@ -10,6 +11,7 @@ export class GoogleAuthController {
 
   constructor(
     private readonly googleAuthService: GoogleAuthService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -52,7 +54,16 @@ export class GoogleAuthController {
     try {
       // Extract panel from state parameter (default to admin)
       const panel = state === 'tenant' ? 'tenant' : 'admin';
-      const redirectBase = panel === 'tenant' ? '/tenant/admin' : '/admin/panel';
+
+      // Build absolute redirect URL so the browser goes to the frontend app,
+      // not back to this API server.
+      // TENANT_APP_URL → e.g. https://app.blocomanager.com
+      // ADMIN_APP_URL  → e.g. https://admin.blocomanager.com  (falls back to FRONTEND_URL)
+      const appUrl = panel === 'tenant'
+        ? (this.configService.get<string>('TENANT_APP_URL') || '').replace(/\/+$/, '')
+        : (this.configService.get<string>('ADMIN_APP_URL') || this.configService.get<string>('FRONTEND_URL') || '').replace(/\/+$/, '');
+      const redirectPath = panel === 'tenant' ? '/tenant/login' : '/admin/login';
+      const redirectBase = appUrl ? `${appUrl}${redirectPath}` : redirectPath;
 
       if (error) {
         this.logger.error(`Google OAuth error: ${error}`);
@@ -73,7 +84,11 @@ export class GoogleAuthController {
     } catch (error) {
       this.logger.error(`Error in Google callback: ${error.message}`);
       const panel = state === 'tenant' ? 'tenant' : 'admin';
-      const errorRedirect = panel === 'tenant' ? '/tenant/admin' : '/admin/panel';
+      const appUrl = panel === 'tenant'
+        ? (this.configService.get<string>('TENANT_APP_URL') || '').replace(/\/+$/, '')
+        : (this.configService.get<string>('ADMIN_APP_URL') || this.configService.get<string>('FRONTEND_URL') || '').replace(/\/+$/, '');
+      const redirectPath = panel === 'tenant' ? '/tenant/login' : '/admin/login';
+      const errorRedirect = appUrl ? `${appUrl}${redirectPath}` : redirectPath;
       return res.redirect(`${errorRedirect}?error=${encodeURIComponent(error.message)}`);
     }
   }

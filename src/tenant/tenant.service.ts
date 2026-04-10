@@ -92,6 +92,13 @@ export class TenantService implements OnModuleInit {
   }
   
   /**
+   * Find a tenant by its tenantId
+   */
+  async findByTenantId(tenantId: string): Promise<Tenant | null> {
+    return this.tenantModel.findOne({ tenantId }).exec();
+  }
+
+  /**
    * Extract tenant from HTTP request based on Host header
    * @param request - Express request object
    * @returns The tenant ID

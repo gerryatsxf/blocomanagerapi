@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEmail, IsNotEmpty, IsDate, MaxDate } from 'class-validator';
+import { IsEmail, IsNotEmpty, IsDate, IsOptional } from 'class-validator';
 
 export class UserRegistrationDto {
   @ApiProperty({
@@ -16,12 +16,11 @@ export class UserRegistrationDto {
   @IsNotEmpty()
   password: string;
 
-  @ApiProperty()
-  @IsNotEmpty()
+  @ApiProperty({ required: false })
+  @IsOptional()
   @IsDate()
-  //@MaxDate(require('moment')().subtract(13, 'y').toDate())
   @Type(() => Date)
-  dateOfBirth: Date;
+  dateOfBirth?: Date;
 
   @ApiProperty({
     type: String,
@@ -32,4 +31,12 @@ export class UserRegistrationDto {
     type: String,
   })
   lastName: string;
+
+  @ApiProperty({
+    type: String,
+    required: false,
+    description: 'Company name — if provided, user is created as tenantAdmin',
+  })
+  @IsOptional()
+  companyName?: string;
 }

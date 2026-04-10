@@ -12,7 +12,7 @@ documentation
 .github
 .dockerignore
 logs
-Dockerfile
+Dockerfile.dev
 docker-compose.yml
 README.md
 PRD.md

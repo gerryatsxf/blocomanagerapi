@@ -34,6 +34,13 @@ export class Tenant {
 
   @Prop()
   deploymentId?: string;
+
+  // ── Billing ──
+  @Prop({ index: true })
+  stripeCustomerId?: string;
+
+  @Prop({ default: 'none' })
+  subscriptionStatus?: string; // none | trialing | active | past_due | canceled | unpaid
 }
 
 export const TenantSchema = SchemaFactory.createForClass(Tenant);

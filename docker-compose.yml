@@ -1,66 +1,27 @@
 services:
-  # Development MongoDB (for local development)
-  mongodb-dev:
-    image: mongo:7.0
-    container_name: blocomanager_mongodb_dev
-    restart: unless-stopped
-    ports:
-      - "27020:27017"
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: admin_root
-      MONGO_INITDB_ROOT_PASSWORD: admin_root
-      MONGO_INITDB_DATABASE: blocomanager
-    volumes:
-      - mongodb_dev_data:/data/db
-    networks:
-      - blocomanager_network
-    profiles:
-      - dev
-    # Resource limits for memory conservation
-    deploy:
-      resources:
-        limits:
-          memory: 256M
-          cpus: '0.5'
-        reservations:
-          memory: 128M
-    # MongoDB memory optimization
-    command: --wiredTigerCacheSizeGB 0.25 --wiredTigerEngineConfigString="cache_size=128MB"
-
-  # Development server (for local development)
-  nestjs-dev:
+  # API server — environment driven by ENV_TAG (dev, prod, staging)
+  nestjs-api:
+    platform: linux/amd64
     build:
       context: .
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
       args:
-        - NODE_ENV=development
-    container_name: blocomanager_dev
-    ports:
-      - "3002:3002"
-    # Environment variables (CI/CD will override these, local dev uses env_file)
+        - NODE_ENV=${NODE_ENV:-production}
+    image: blocomanager-api:${ENV_TAG:-dev}
+    container_name: blocomanager_api_${ENV_TAG:-dev}
+    expose:
+      - "3002"
+    # On remote: blococloud uploads merged .env to ~/deploy/
+    # Locally: use --env-file env/dev.env or symlink .env → env/dev.env
+    env_file:
+      - .env
     environment:
-      - NODE_ENV=${NODE_ENV:-development}
+      - NODE_ENV=${NODE_ENV:-production}
       - PORT=${PORT:-3002}
-      - MONGO_DB_CONNECTION_STRING=${MONGO_DB_CONNECTION_STRING:-mongodb://admin_root:admin_root@mongodb-dev:27017/blocomanager?authSource=admin}
-      - JWT_SECRET=${JWT_SECRET}
-      - JWT_EXPIRES_IN=${JWT_EXPIRES_IN}
-      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
-      - STRIPE_PAYMENT_SUCCESS_WEBHOOK_SECRET_KEY=${STRIPE_PAYMENT_SUCCESS_WEBHOOK_SECRET_KEY}
-      - NYLAS_MAIN_ACCOUNT_EMAIL=${NYLAS_MAIN_ACCOUNT_EMAIL}
-      - NYLAS_MAIN_ACCOUNT_API_KEY=${NYLAS_MAIN_ACCOUNT_API_KEY}
-      - NYLAS_MAIN_ACCOUNT_GRANT_ID=${NYLAS_MAIN_ACCOUNT_GRANT_ID}
-      - CREATE_MEETING_URL=${CREATE_MEETING_URL}
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - GOOGLE_REDIRECT_URI=${GOOGLE_REDIRECT_URI}
-      - DOCKER_ENV=${DOCKER_ENV:-false}
+      - DOCKER_ENV=true
       - NODE_OPTIONS=--max-old-space-size=256
-    depends_on:
-      - mongodb-dev
     networks:
       - blocomanager_network
-    profiles:
-      - dev
     restart: unless-stopped
     # Resource limits for memory conservation
     deploy:
@@ -77,12 +38,36 @@ services:
       retries: 3
       start_period: 40s
 
+  # Reverse proxy — automatic HTTPS via Let's Encrypt
+  caddy:
+    image: caddy:2-alpine
+    container_name: blocomanager_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"   # HTTP/3 (QUIC)
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data      # TLS certs
+      - caddy_config:/config  # runtime config
+    networks:
+      - blocomanager_network
+    depends_on:
+      nestjs-api:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+          cpus: '0.5'
+
+volumes:
+  caddy_data:
+  caddy_config:
+
 networks:
   blocomanager_network:
     driver: bridge
 
-volumes:
-  mongodb_data:
-    driver: local
-  mongodb_dev_data:
-    driver: local
+

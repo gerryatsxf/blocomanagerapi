@@ -1,0 +1,17 @@
+api.blocomanager.com {
+	reverse_proxy nestjs-api:3002
+
+	header {
+		# Security headers
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		# Remove server identity
+		-Server
+	}
+
+	log {
+		output stdout
+		format console
+	}
+}

@@ -1,5 +1,6 @@
 import { Controller, Get, Post, Req, Res, UseGuards, Logger, Query, Body, HttpException, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiBody } from '@nestjs/swagger';
+import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { TenantGuard } from './guards/tenant.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -19,6 +20,7 @@ export class GoogleOAuthController {
     private readonly googleOAuthService: GoogleOAuthService,
     private readonly googleCalendarService: GoogleCalendarService,
     private readonly webhookSubscriptionService: WebhookSubscriptionService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -58,7 +60,8 @@ export class GoogleOAuthController {
     try {
       if (!code) {
         this.logger.error('No authorization code provided');
-        return res.redirect('/tenant/admin?view=calendar&error=' + encodeURIComponent('Authorization code not provided'));
+        const base = (this.configService.get<string>('TENANT_APP_URL') || '').replace(/\/+$/, '');
+        return res.redirect(`${base}/tenant/admin?view=calendar&error=` + encodeURIComponent('Authorization code not provided'));
       }
 
       // Extract tenant from state parameter
@@ -85,12 +88,14 @@ export class GoogleOAuthController {
         // Don't fail the OAuth connection if webhook registration fails
       }
       
-      // Redirect back to tenant admin panel live site page with success message
-      return res.redirect('/tenant/admin?view=calendar&success=' + encodeURIComponent('Google account connected successfully'));
+      // Redirect back to tenant app with success message
+      const base = (this.configService.get<string>('TENANT_APP_URL') || '').replace(/\/+$/, '');
+      return res.redirect(`${base}/tenant/admin?view=calendar&success=` + encodeURIComponent('Google account connected successfully'));
       
     } catch (error) {
       this.logger.error(`Error in Google OAuth callback: ${error.message}`);
-      return res.redirect('/tenant/admin?view=calendar&error=' + encodeURIComponent(error.message));
+      const base = (this.configService.get<string>('TENANT_APP_URL') || '').replace(/\/+$/, '');
+      return res.redirect(`${base}/tenant/admin?view=calendar&error=` + encodeURIComponent(error.message));
     }
   }
 

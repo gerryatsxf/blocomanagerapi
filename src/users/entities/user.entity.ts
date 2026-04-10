@@ -69,6 +69,20 @@ export class User {
   emailVerificationToken?: string;
 
   @ApiProperty({
+    type: String,
+    description: 'Company / business name (set during tenant signup)',
+  })
+  @Prop()
+  companyName?: string;
+
+  @ApiProperty({
+    type: Date,
+    description: 'Last time the user logged in',
+  })
+  @Prop()
+  lastLoginAt?: Date;
+
+  @ApiProperty({
     type: Date,
   })
   createdAt?: Date;

@@ -681,6 +681,107 @@ export class AuthService {
   }
 
   /**
+   * Get the authenticated user's profile from the session
+   * Used by GET /auth/me
+   */
+  async getProfile(session: ISession): Promise<{
+    _id: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
+    role: string;
+    tenant?: string;
+    companyName?: string;
+    emailVerified: boolean;
+  } | null> {
+    if (!session || !session.userId) {
+      return null;
+    }
+
+    const user = await this.usersService.findById(session.userId);
+    if (!user) return null;
+
+    // Update lastLoginAt (fire-and-forget)
+    this.usersService.update(user._id.toString(), { lastLoginAt: new Date() }).catch(() => {});
+
+    return {
+      _id: user._id.toString(),
+      email: user.email,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      role: user.role,
+      tenant: user.tenant,
+      companyName: user.companyName,
+      emailVerified: user.emailVerified,
+    };
+  }
+
+  /**
+   * Deferred tenant creation: create tenant + onboard to Stripe
+   * Called after user is already registered and authenticated.
+   * The user picks a plan on the Onboarding page, which calls POST /auth/onboard-tenant.
+   */
+  async onboardTenantDeferred(
+    session: ISession,
+    params: {
+      name: string;
+      description: string;
+      domain?: string;
+      planSlug?: string;
+    },
+  ): Promise<{ tenantId: string }> {
+    if (!session || !session.userId) {
+      throw new UnauthorizedException('You must be logged in to create a tenant');
+    }
+
+    const user = await this.usersService.findById(session.userId);
+    if (!user) throw new BadRequestException('User not found');
+
+    // Prevent double-onboard
+    if (user.tenant) {
+      throw new BadRequestException('You already have a tenant. Visit billing to manage your subscription.');
+    }
+
+    if (!params.name?.trim()) {
+      throw new BadRequestException('Tenant name is required');
+    }
+    if (!params.description?.trim()) {
+      throw new BadRequestException('Tenant description is required');
+    }
+
+    // Build slug: prefer explicit domain, else slugify name
+    let slug = params.domain?.trim()
+      ? params.domain.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+      : params.name.toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    if (!slug) slug = 'tenant';
+
+    // Ensure uniqueness
+    const existing = await this.tenantService.findByTenantId(slug);
+    if (existing) {
+      slug = `${slug}-${Math.random().toString(36).slice(2, 6)}`;
+    }
+
+    // 1. Create the tenant
+    await this.tenantService.createTenant({
+      tenantId: slug,
+      domain: slug,
+      name: params.name.trim(),
+      description: params.description.trim(),
+      storageProvider: 'local',
+    });
+
+    // 2. Link user to tenant
+    await this.usersService.update(user._id.toString(), {
+      tenant: slug,
+      role: 'tenantAdmin',
+    });
+
+    console.log(`[AUTH] Tenant created via deferred flow: ${slug} (${params.name}) for user ${user.email}`);
+
+    return { tenantId: slug };
+  }
+
+  /**
    * Helper: Mask email for security
    * user@example.com → u***@example.com
    */

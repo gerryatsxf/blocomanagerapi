@@ -33,6 +33,8 @@ export class UsersService {
     dateOfBirth?: Date,
     firstName?: string,
     lastName?: string,
+    companyName?: string,
+    role?: string,
   ): Promise<UserDocument> {
     // Check if email already exists
     const existingUser = await this.findByEmail(email);
@@ -49,6 +51,8 @@ export class UsersService {
       firstName,
       lastName,
       dateOfBirth,
+      companyName,
+      role: role || 'user',
       emailVerified: false,
       emailVerificationToken: verificationToken,
     });
@@ -95,6 +99,10 @@ export class UsersService {
       firstName: string;
       lastName: string;
       dateOfBirth: Date;
+      role: string;
+      tenant: string;
+      companyName: string;
+      lastLoginAt: Date;
     }>,
   ): Promise<UserDocument | undefined> {
     if (updateData.password) {

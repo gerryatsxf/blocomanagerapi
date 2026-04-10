@@ -155,7 +155,24 @@ setInterval(async () => {
     // You might want to validate leadId here
     return this.authService.deleteToken(leadId);
   }
-  
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get the authenticated user profile',
+    description: 'Returns the user profile associated with the current session. Returns null fields if session is unauthenticated.',
+  })
+  @ApiResponse({ status: 200, description: 'User profile returned' })
+  @ApiResponse({ status: 401, description: 'Invalid or expired token' })
+  async getProfile(@Request() req) {
+    const profile = await this.authService.getProfile(req.user);
+    if (!profile) {
+      return { authenticated: false };
+    }
+    return { authenticated: true, user: profile };
+  }
+
   @Throttle({ default: { limit: 3, ttl: 900000 } }) // 3 requests per 15 minutes
   @UseGuards(JwtAuthGuard)
   @Post('login')
@@ -264,12 +281,15 @@ setInterval(async () => {
     }
     
     // Create the new user
+    const role = userRegistrationDto.companyName ? 'tenantAdmin' : undefined;
     const user = await this.usersService.create(
       userRegistrationDto.email,
       userRegistrationDto.password,
       userRegistrationDto.dateOfBirth ? new Date(userRegistrationDto.dateOfBirth) : undefined,
       userRegistrationDto.firstName,
       userRegistrationDto.lastName,
+      userRegistrationDto.companyName,
+      role,
     );
     
     // Send welcome email with verification link (async, don't wait for it)
@@ -285,6 +305,28 @@ setInterval(async () => {
     
     // Authenticate the session by associating it with the new user
     return this.authService.authenticateSession(session._id, user._id.toString());
+  }
+
+  @Throttle({ default: { limit: 5, ttl: 900000 } }) // 5 requests per 15 minutes
+  @UseGuards(JwtAuthGuard)
+  @Post('onboard-tenant')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Deferred tenant creation: create tenant for an authenticated user',
+    description: `Creates a new tenant for the authenticated user and links them as tenantAdmin.
+The user must already be registered (via POST /auth/register with companyName).
+This is step 2 of the self-service signup: user picks a plan on the Onboarding page, then this endpoint creates the tenant.
+
+**Rate Limit:** 5 requests per 15 minutes.`,
+  })
+  @ApiResponse({ status: 201, description: 'Tenant created', schema: { example: { tenantId: 'acme-corp' } } })
+  @ApiResponse({ status: 400, description: 'User already has a tenant or user not found' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async onboardTenant(
+    @Request() req,
+    @Body() body: { name: string; description: string; domain?: string; planSlug?: string },
+  ) {
+    return this.authService.onboardTenantDeferred(req.user, body);
   }
 
   @Throttle({ default: { limit: 3, ttl: 900000 } }) // 3 requests per 15 minutes

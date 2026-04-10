@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { AppService } from './app.service';
 import { AppController } from './app.controller';
@@ -26,6 +26,8 @@ import { EmailChangeModule } from './email-change/email-change.module';
 import { ContactModule } from './contact/contact.module';
 import { AdminModule } from './admin/admin.module';
 import { TemplateModule } from './template/template.module';
+import { SubscriptionModule } from './subscription/subscription.module';
+import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 
 @Module({
   imports: [
@@ -72,6 +74,7 @@ import { TemplateModule } from './template/template.module';
     ProductModule,
     CartModule,
     ChatModule,
+    SubscriptionModule,
   ],
   controllers: [AppController],
   providers: [
@@ -82,4 +85,8 @@ import { TemplateModule } from './template/template.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestLoggerMiddleware).forRoutes('*');
+  }
+}
