@@ -254,17 +254,17 @@ export class GoogleOAuthService {
   /**
    * Generate Google OAuth authorization URL
    */
-  async generateAuthUrl(tenantId: string): Promise<string> {
-    console.log('🔗 Generating auth URL for tenant:', tenantId);
+  async generateAuthUrl(tenantId: string, panel: string = 'tenant'): Promise<string> {
+    console.log(`🔗 Generating auth URL for tenant: ${tenantId}, panel: ${panel}`);
     
     const authUrl = this.oauth2Client.generateAuthUrl({
       access_type: 'offline',
       scope: this.SCOPES,
-      state: tenantId, // Pass tenant ID as state parameter
+      state: `${tenantId}:${panel}`, // Composite state: "tenantId:panel" so callback knows where to redirect
       prompt: 'consent', // Force consent screen to get refresh token
     });
 
-    console.log('🔗 Generated auth URL:', authUrl);
+    console.log(`🔗 Generated auth URL: ${authUrl}`);
     return authUrl;
   }
 

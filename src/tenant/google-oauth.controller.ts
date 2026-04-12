@@ -30,11 +30,12 @@ export class GoogleOAuthController {
   @Get('connect')
   async initiateGoogleAuth(
     @Tenant() tenantId: string,
+    @Query('panel') panel: string,
     @Res() res: Response,
   ) {
     try {
-      this.logger.debug(`Initiating Google OAuth for tenant: ${tenantId}`);
-      const authUrl = await this.googleOAuthService.generateAuthUrl(tenantId);
+      this.logger.debug(`Initiating Google OAuth for tenant: ${tenantId}, panel: ${panel || 'tenant'}`);
+      const authUrl = await this.googleOAuthService.generateAuthUrl(tenantId, panel || 'tenant');
       this.logger.debug(`Generated auth URL: ${authUrl}`);
       return res.redirect(authUrl);
     } catch (error) {
@@ -58,15 +59,31 @@ export class GoogleOAuthController {
     @Res() res: Response,
   ) {
     try {
+      // Parse composite state: "tenantId:panel" (e.g. "blocomanager:admin")
+      const parts = (state || '').split(':');
+      const tenantId = parts[0];
+      const panel = parts[1] || 'tenant';
+
+      // Determine redirect base URL and path based on originating panel
+      const getRedirectBase = () => {
+        if (panel === 'admin') {
+          return {
+            base: (this.configService.get<string>('ADMIN_APP_URL') || '').replace(/\/+$/, ''),
+            path: '/admin/settings',
+          };
+        }
+        return {
+          base: (this.configService.get<string>('TENANT_APP_URL') || '').replace(/\/+$/, ''),
+          path: '/tenant/calendar',
+        };
+      };
+
       if (!code) {
         this.logger.error('No authorization code provided');
-        const base = (this.configService.get<string>('TENANT_APP_URL') || '').replace(/\/+$/, '');
-        return res.redirect(`${base}/tenant/admin?view=calendar&error=` + encodeURIComponent('Authorization code not provided'));
+        const { base, path } = getRedirectBase();
+        return res.redirect(`${base}${path}?error=` + encodeURIComponent('Authorization code not provided'));
       }
 
-      // Extract tenant from state parameter
-      const tenantId = state;
-      
       const result = await this.googleOAuthService.handleCallback(code, tenantId);
       
       this.logger.log(`Google account connected successfully: ${result.email}`);
@@ -88,14 +105,20 @@ export class GoogleOAuthController {
         // Don't fail the OAuth connection if webhook registration fails
       }
       
-      // Redirect back to tenant app with success message
-      const base = (this.configService.get<string>('TENANT_APP_URL') || '').replace(/\/+$/, '');
-      return res.redirect(`${base}/tenant/admin?view=calendar&success=` + encodeURIComponent('Google account connected successfully'));
+      // Redirect back to the panel the user came from
+      const { base, path } = getRedirectBase();
+      return res.redirect(`${base}${path}?success=` + encodeURIComponent('Google account connected successfully'));
       
     } catch (error) {
       this.logger.error(`Error in Google OAuth callback: ${error.message}`);
-      const base = (this.configService.get<string>('TENANT_APP_URL') || '').replace(/\/+$/, '');
-      return res.redirect(`${base}/tenant/admin?view=calendar&error=` + encodeURIComponent(error.message));
+      // Best-effort redirect: parse state again for panel
+      const parts = (state || '').split(':');
+      const panel = parts[1] || 'tenant';
+      const base = panel === 'admin'
+        ? (this.configService.get<string>('ADMIN_APP_URL') || '').replace(/\/+$/, '')
+        : (this.configService.get<string>('TENANT_APP_URL') || '').replace(/\/+$/, '');
+      const path = panel === 'admin' ? '/admin/settings' : '/tenant/calendar';
+      return res.redirect(`${base}${path}?error=` + encodeURIComponent(error.message));
     }
   }
 
