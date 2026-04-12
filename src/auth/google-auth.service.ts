@@ -55,7 +55,7 @@ export class GoogleAuthService {
   /**
    * Handle OAuth callback and create/login user
    */
-  async handleCallback(code: string): Promise<{ access_token: string; email: string; role: UserRole }> {
+  async handleCallback(code: string, panel: string = 'admin'): Promise<{ access_token: string; email: string; role: UserRole }> {
     try {
       // Exchange code for tokens
       const { tokens } = await this.oauth2Client.getToken(code);
@@ -108,6 +108,16 @@ export class GoogleAuthService {
             await updatedUser.save();
             user = updatedUser;
             this.logger.log(`User role updated: ${(user as any).role}`);
+          }
+        } else if (panel === 'tenant') {
+          // New user signing up from the tenant panel → make them a tenant admin
+          this.logger.log(`Setting tenantAdmin role for new tenant signup: ${data.email}`);
+          const updatedUser = await this.usersService.findByEmail(data.email);
+          if (updatedUser) {
+            (updatedUser as any).role = UserRole.TENANT_ADMIN;
+            await updatedUser.save();
+            user = updatedUser;
+            this.logger.log(`User role set to tenantAdmin: ${data.email}`);
           }
         } else {
           // Refetch to get the verified user

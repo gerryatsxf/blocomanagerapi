@@ -76,7 +76,7 @@ export class GoogleAuthController {
       }
 
       // Exchange code for tokens and create/login user
-      const result = await this.googleAuthService.handleCallback(code);
+      const result = await this.googleAuthService.handleCallback(code, panel);
 
       // Redirect to appropriate panel with token
       return res.redirect(`${redirectBase}?token=${result.access_token}&email=${encodeURIComponent(result.email)}`);

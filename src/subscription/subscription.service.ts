@@ -4,8 +4,10 @@ import { Model } from 'mongoose';
 import Stripe from 'stripe';
 import { Subscription, SubscriptionDocument, SubscriptionPlan, SubscriptionStatus } from './schemas/subscription.schema';
 import { Tenant, TenantDocument } from '../tenant/schemas/tenant.schema';
+import { User, UserDocument, UserRole } from '../users/entities/user.entity';
 import { StripeService } from './stripe.service';
 import { PlanService } from './plan.service';
+import { NotificationService } from '../notification/notification.service';
 
 @Injectable()
 export class SubscriptionService {
@@ -16,8 +18,11 @@ export class SubscriptionService {
     private readonly subscriptionModel: Model<SubscriptionDocument>,
     @InjectModel(Tenant.name)
     private readonly tenantModel: Model<TenantDocument>,
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
     private readonly stripeService: StripeService,
     private readonly planService: PlanService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   // ── Onboarding: create Stripe customer + trial subscription ──
@@ -232,7 +237,7 @@ export class SubscriptionService {
 
       case 'customer.subscription.trial_will_end':
         this.logger.log(`Trial ending soon for tenant ${tenantId}`);
-        // TODO: Send email notification
+        await this.sendTrialEndingNotification(tenantId, subscription);
         break;
 
       default:
@@ -262,7 +267,7 @@ export class SubscriptionService {
         { tenantId: sub.tenantId },
         { subscriptionStatus: 'past_due' },
       );
-      // TODO: Send dunning email
+      await this.sendPaymentFailedNotification(sub.tenantId);
     }
   }
 
@@ -343,6 +348,70 @@ export class SubscriptionService {
     if (defaultPlan) return defaultPlan;
 
     throw new BadRequestException('No plans configured. Go to Admin → Plans and create at least one plan with a Stripe Price ID.');
+  }
+
+  /**
+   * Look up the tenant admin user's email + display name.
+   */
+  private async getTenantAdminContact(tenantId: string): Promise<{ email: string; displayName: string } | null> {
+    const admin = await this.userModel.findOne({
+      tenant: tenantId,
+      role: UserRole.TENANT_ADMIN,
+    }).lean();
+
+    if (!admin) {
+      this.logger.warn(`No tenantAdmin user found for tenant ${tenantId}`);
+      return null;
+    }
+
+    const displayName = [admin.firstName, admin.lastName].filter(Boolean).join(' ') || admin.email;
+    return { email: admin.email, displayName };
+  }
+
+  /**
+   * Send trial-ending email to tenant admin.
+   */
+  private async sendTrialEndingNotification(tenantId: string, subscription: Stripe.Subscription) {
+    const contact = await this.getTenantAdminContact(tenantId);
+    if (!contact) return;
+
+    const tenant = await this.tenantModel.findOne({ tenantId }).lean();
+    const trialEnd = subscription.trial_end
+      ? new Date(subscription.trial_end * 1000)
+      : new Date();
+
+    try {
+      await this.notificationService.sendTrialEndingEmail(
+        contact.email,
+        contact.displayName,
+        trialEnd,
+        tenant?.domain,
+      );
+      this.logger.log(`Trial-ending email sent to ${contact.email} for tenant ${tenantId}`);
+    } catch (err) {
+      this.logger.error(`Failed to send trial-ending email for tenant ${tenantId}: ${err.message}`);
+    }
+  }
+
+  /**
+   * Send payment-failed dunning email to tenant admin.
+   */
+  private async sendPaymentFailedNotification(tenantId: string) {
+    const contact = await this.getTenantAdminContact(tenantId);
+    if (!contact) return;
+
+    const tenant = await this.tenantModel.findOne({ tenantId }).lean();
+
+    try {
+      await this.notificationService.sendPaymentFailedEmail(
+        contact.email,
+        contact.displayName,
+        tenant?.domain,
+      );
+      this.logger.log(`Payment-failed email sent to ${contact.email} for tenant ${tenantId}`);
+    } catch (err) {
+      this.logger.error(`Failed to send payment-failed email for tenant ${tenantId}: ${err.message}`);
+    }
   }
 
   /**

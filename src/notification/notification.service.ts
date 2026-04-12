@@ -1008,4 +1008,346 @@ Need help? Contact our support team.
       console.log('='.repeat(80));
     }
   }
+
+  // ==================== CLEANUP LIFECYCLE EMAILS ====================
+
+  /**
+   * Phase 1 — Day 5 warning: "Complete onboarding — 2 days left"
+   */
+  async sendCleanupWarningEmail(email: string, displayName: string): Promise<void> {
+    const tenantAppUrl = this.configService.get<string>('TENANT_APP_URL', 'http://localhost:5173');
+    const onboardingUrl = `${tenantAppUrl}/tenant/onboarding`;
+    const subject = 'Action Required: Complete Your BlocoManager Setup';
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8">
+<style>
+  body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+  .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+  .header { background-color: #FF9800; color: white; padding: 20px; text-align: center; }
+  .content { background-color: #f9f9f9; padding: 30px; border: 1px solid #ddd; }
+  .button { display: inline-block; padding: 14px 28px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; }
+  .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
+  .warning { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin: 20px 0; }
+  .policy { background-color: #e8f4f8; border-left: 4px solid #17a2b8; padding: 12px; margin: 20px 0; font-size: 13px; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header"><h1>⏰ Complete Your Setup</h1></div>
+    <div class="content">
+      <p>Hi ${displayName},</p>
+      <p>We noticed you signed up for BlocoManager but haven't completed your workspace setup yet.</p>
+      <div class="warning">
+        <strong>Your account will be automatically removed in 2 days</strong> if onboarding is not completed,
+        in accordance with our data retention policy.
+      </div>
+      <p>It only takes a few minutes to get started:</p>
+      <p style="text-align: center;">
+        <a href="${onboardingUrl}" class="button">Complete My Setup →</a>
+      </p>
+      <div class="policy">
+        <strong>📋 Our Data Retention Policy:</strong><br>
+        Accounts that are not fully onboarded within 7 days of registration are automatically removed to keep our platform secure and clean. You can always sign up again after removal.
+      </div>
+      <p>If you no longer wish to use BlocoManager, no action is needed — your account will be removed automatically.</p>
+      <p>Best regards,<br>The BlocoManager Team</p>
+    </div>
+    <div class="footer"><p>&copy; ${new Date().getFullYear()} BlocoManager. All rights reserved.</p></div>
+  </div>
+</body>
+</html>`;
+
+    const textBody = `Hi ${displayName},
+
+We noticed you signed up for BlocoManager but haven't completed your workspace setup yet.
+
+⚠️ Your account will be automatically removed in 2 days if onboarding is not completed.
+
+Complete your setup now: ${onboardingUrl}
+
+📋 Our Data Retention Policy:
+Accounts that are not fully onboarded within 7 days of registration are automatically removed. You can always sign up again after removal.
+
+Best regards,
+The BlocoManager Team`;
+
+    const sent = await this.sendGmailEmail(email, subject, htmlBody, textBody);
+    if (!sent) {
+      console.log(`📧 CLEANUP WARNING (Console Fallback) → ${email}: Complete onboarding in 2 days`);
+    }
+  }
+
+  /**
+   * Phase 2 — Day 6 final notice: "Last chance — removal tomorrow"
+   */
+  async sendCleanupFinalNoticeEmail(email: string, displayName: string): Promise<void> {
+    const tenantAppUrl = this.configService.get<string>('TENANT_APP_URL', 'http://localhost:5173');
+    const onboardingUrl = `${tenantAppUrl}/tenant/onboarding`;
+    const subject = '🚨 Final Notice: Your BlocoManager Account Will Be Removed Tomorrow';
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8">
+<style>
+  body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+  .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+  .header { background-color: #dc3545; color: white; padding: 20px; text-align: center; }
+  .content { background-color: #f9f9f9; padding: 30px; border: 1px solid #ddd; }
+  .button { display: inline-block; padding: 14px 28px; background-color: #28a745; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; }
+  .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
+  .alert { background-color: #f8d7da; border-left: 4px solid #dc3545; padding: 12px; margin: 20px 0; }
+  .policy { background-color: #e8f4f8; border-left: 4px solid #17a2b8; padding: 12px; margin: 20px 0; font-size: 13px; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header"><h1>🚨 Last Chance</h1></div>
+    <div class="content">
+      <p>Hi ${displayName},</p>
+      <p>This is your <strong>final notice</strong>. Your BlocoManager account will be <strong>permanently removed tomorrow</strong> because onboarding was not completed.</p>
+      <div class="alert">
+        <strong>⏰ You have less than 24 hours to complete your setup.</strong><br>
+        After removal, all account data will be permanently deleted.
+      </div>
+      <p style="text-align: center;">
+        <a href="${onboardingUrl}" class="button">Complete My Setup Now →</a>
+      </p>
+      <div class="policy">
+        <strong>📋 Data Retention Policy Reminder:</strong><br>
+        Per our policy, accounts not onboarded within 7 days are automatically removed. You're welcome to create a new account at any time after removal.
+      </div>
+      <p>Best regards,<br>The BlocoManager Team</p>
+    </div>
+    <div class="footer"><p>&copy; ${new Date().getFullYear()} BlocoManager. All rights reserved.</p></div>
+  </div>
+</body>
+</html>`;
+
+    const textBody = `Hi ${displayName},
+
+🚨 FINAL NOTICE: Your BlocoManager account will be permanently removed tomorrow.
+
+You have less than 24 hours to complete your setup: ${onboardingUrl}
+
+After removal, all account data will be permanently deleted. You can create a new account at any time.
+
+Best regards,
+The BlocoManager Team`;
+
+    const sent = await this.sendGmailEmail(email, subject, htmlBody, textBody);
+    if (!sent) {
+      console.log(`🚨 CLEANUP FINAL NOTICE (Console Fallback) → ${email}: Account removal tomorrow`);
+    }
+  }
+
+  /**
+   * Phase 3 — Day 7 confirmation: "Account removed"
+   */
+  async sendCleanupConfirmationEmail(email: string, displayName: string): Promise<void> {
+    const signupUrl = this.configService.get<string>('TENANT_APP_URL', 'http://localhost:5173') + '/signup';
+    const subject = 'Your BlocoManager Account Has Been Removed';
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8">
+<style>
+  body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+  .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+  .header { background-color: #6c757d; color: white; padding: 20px; text-align: center; }
+  .content { background-color: #f9f9f9; padding: 30px; border: 1px solid #ddd; }
+  .button { display: inline-block; padding: 14px 28px; background-color: #007bff; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; }
+  .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
+  .info { background-color: #e8f4f8; border-left: 4px solid #17a2b8; padding: 12px; margin: 20px 0; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header"><h1>Account Removed</h1></div>
+    <div class="content">
+      <p>Hi ${displayName},</p>
+      <p>Your BlocoManager account has been removed in accordance with our data retention policy, as onboarding was not completed within the 7-day window.</p>
+      <div class="info">
+        <strong>What was removed:</strong>
+        <ul>
+          <li>Your user account and registration data</li>
+          <li>Any associated email verification tokens</li>
+        </ul>
+        <strong>What this means:</strong>
+        <ul>
+          <li>You can sign up again at any time with the same email address</li>
+          <li>No billing or payment data was affected (none was created)</li>
+        </ul>
+      </div>
+      <p>If you'd like to give BlocoManager another try, we'd love to have you back:</p>
+      <p style="text-align: center;">
+        <a href="${signupUrl}" class="button">Sign Up Again →</a>
+      </p>
+      <p>Best regards,<br>The BlocoManager Team</p>
+    </div>
+    <div class="footer"><p>&copy; ${new Date().getFullYear()} BlocoManager. All rights reserved.</p></div>
+  </div>
+</body>
+</html>`;
+
+    const textBody = `Hi ${displayName},
+
+Your BlocoManager account has been removed in accordance with our data retention policy, as onboarding was not completed within the 7-day window.
+
+What was removed:
+• Your user account and registration data
+• Any associated email verification tokens
+
+You can sign up again at any time: ${signupUrl}
+
+Best regards,
+The BlocoManager Team`;
+
+    const sent = await this.sendGmailEmail(email, subject, htmlBody, textBody);
+    if (!sent) {
+      console.log(`🗑️ CLEANUP CONFIRMATION (Console Fallback) → ${email}: Account removed`);
+    }
+  }
+
+  // ==================== SUBSCRIPTION LIFECYCLE EMAILS ====================
+
+  /**
+   * Trial ending soon — sent when Stripe fires customer.subscription.trial_will_end (3 days before)
+   */
+  async sendTrialEndingEmail(email: string, displayName: string, trialEndDate: Date, tenantDomain?: string): Promise<void> {
+    const tenantAppUrl = tenantDomain
+      ? `https://${tenantDomain}.blocomanager.com`
+      : this.configService.get<string>('TENANT_APP_URL', 'http://localhost:5173');
+    const billingUrl = `${tenantAppUrl}/tenant/billing`;
+    const formattedDate = trialEndDate.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const subject = `Your BlocoManager Trial Ends on ${formattedDate}`;
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8">
+<style>
+  body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+  .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+  .header { background-color: #FF9800; color: white; padding: 20px; text-align: center; }
+  .content { background-color: #f9f9f9; padding: 30px; border: 1px solid #ddd; }
+  .button { display: inline-block; padding: 14px 28px; background-color: #4CAF50; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; }
+  .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
+  .info { background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin: 20px 0; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header"><h1>⏰ Trial Ending Soon</h1></div>
+    <div class="content">
+      <p>Hi ${displayName},</p>
+      <p>Your BlocoManager free trial is ending on <strong>${formattedDate}</strong>.</p>
+      <div class="info">
+        <strong>What happens next:</strong><br>
+        When your trial ends, your subscription will automatically convert to a paid plan.
+        If you've already added a payment method, no action is needed — everything will continue seamlessly.
+      </div>
+      <p>To review your billing details or change your plan:</p>
+      <p style="text-align: center;">
+        <a href="${billingUrl}" class="button">Review Billing →</a>
+      </p>
+      <p>If you have any questions, don't hesitate to reach out.</p>
+      <p>Best regards,<br>The BlocoManager Team</p>
+    </div>
+    <div class="footer"><p>&copy; ${new Date().getFullYear()} BlocoManager. All rights reserved.</p></div>
+  </div>
+</body>
+</html>`;
+
+    const textBody = `Hi ${displayName},
+
+Your BlocoManager free trial is ending on ${formattedDate}.
+
+When your trial ends, your subscription will automatically convert to a paid plan.
+
+Review your billing: ${billingUrl}
+
+Best regards,
+The BlocoManager Team`;
+
+    const sent = await this.sendGmailEmail(email, subject, htmlBody, textBody);
+    if (!sent) {
+      console.log(`⏰ TRIAL ENDING (Console Fallback) → ${email}: Trial ends ${formattedDate}`);
+    }
+  }
+
+  /**
+   * Payment failed — dunning email sent when invoice.payment_failed fires
+   */
+  async sendPaymentFailedEmail(email: string, displayName: string, tenantDomain?: string): Promise<void> {
+    const tenantAppUrl = tenantDomain
+      ? `https://${tenantDomain}.blocomanager.com`
+      : this.configService.get<string>('TENANT_APP_URL', 'http://localhost:5173');
+    const billingUrl = `${tenantAppUrl}/tenant/billing`;
+    const subject = '⚠️ Payment Failed — Action Required for Your BlocoManager Subscription';
+
+    const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8">
+<style>
+  body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+  .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+  .header { background-color: #dc3545; color: white; padding: 20px; text-align: center; }
+  .content { background-color: #f9f9f9; padding: 30px; border: 1px solid #ddd; }
+  .button { display: inline-block; padding: 14px 28px; background-color: #dc3545; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; }
+  .footer { text-align: center; padding: 20px; font-size: 12px; color: #666; }
+  .alert { background-color: #f8d7da; border-left: 4px solid #dc3545; padding: 12px; margin: 20px 0; }
+  .steps { background-color: #e8f4f8; border-left: 4px solid #17a2b8; padding: 12px; margin: 20px 0; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="header"><h1>⚠️ Payment Failed</h1></div>
+    <div class="content">
+      <p>Hi ${displayName},</p>
+      <p>We were unable to process your most recent payment for your BlocoManager subscription.</p>
+      <div class="alert">
+        <strong>Your subscription is now past due.</strong><br>
+        Please update your payment method to avoid service interruption.
+      </div>
+      <div class="steps">
+        <strong>To resolve this:</strong>
+        <ol>
+          <li>Go to your Billing page</li>
+          <li>Click "Manage Billing" to open the Stripe portal</li>
+          <li>Update your payment method</li>
+        </ol>
+      </div>
+      <p style="text-align: center;">
+        <a href="${billingUrl}" class="button">Update Payment Method →</a>
+      </p>
+      <p>If you believe this is an error, please contact your bank or reach out to us.</p>
+      <p>Best regards,<br>The BlocoManager Team</p>
+    </div>
+    <div class="footer"><p>&copy; ${new Date().getFullYear()} BlocoManager. All rights reserved.</p></div>
+  </div>
+</body>
+</html>`;
+
+    const textBody = `Hi ${displayName},
+
+⚠️ We were unable to process your most recent payment for your BlocoManager subscription.
+
+Your subscription is now past due. Please update your payment method to avoid service interruption.
+
+Update your payment: ${billingUrl}
+
+Best regards,
+The BlocoManager Team`;
+
+    const sent = await this.sendGmailEmail(email, subject, htmlBody, textBody);
+    if (!sent) {
+      console.log(`⚠️ PAYMENT FAILED (Console Fallback) → ${email}: Update payment method`);
+    }
+  }
 }

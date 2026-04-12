@@ -82,6 +82,12 @@ export class User {
   @Prop()
   lastLoginAt?: Date;
 
+  @Prop()
+  cleanupWarnedAt?: Date;
+
+  @Prop()
+  cleanupFinalNoticeAt?: Date;
+
   @ApiProperty({
     type: Date,
   })

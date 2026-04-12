@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { PassportModule } from '@nestjs/passport';
@@ -16,6 +17,8 @@ import { UsersModule } from '../users/users.module';
 import { PasswordResetModule } from '../password-reset/password-reset.module';
 import { NotificationModule } from '../notification/notification.module';
 import { EmailChangeModule } from '../email-change/email-change.module';
+import { CleanupService } from './cleanup.service';
+import { User, UserSchema } from '../users/entities/user.entity';
 
 const jwtFactory = (configService: ConfigService) => ({
   secret: configService.get<string>(JWT_SECRET),
@@ -35,6 +38,7 @@ const options = {
     EncryptionModule,
     PassportModule,
     JwtModule.registerAsync(options),
+    MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
     SessionModule,
     TenantModule,
     UsersModule,
@@ -42,7 +46,7 @@ const options = {
     NotificationModule,
     EmailChangeModule,
   ],
-  providers: [AuthService, GoogleAuthService, JwtStrategy, EncryptionService, ConfigService],
+  providers: [AuthService, GoogleAuthService, JwtStrategy, EncryptionService, ConfigService, CleanupService],
   exports: [AuthService, GoogleAuthService],
   controllers: [AuthController, GoogleAuthController],
 })
