@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Request } from 'express';
@@ -96,6 +96,34 @@ export class TenantService implements OnModuleInit {
    */
   async findByTenantId(tenantId: string): Promise<Tenant | null> {
     return this.tenantModel.findOne({ tenantId }).exec();
+  }
+
+  /**
+   * Update tenant name / description.
+   * Persists to MongoDB and keeps the in-memory config in sync.
+   */
+  async updateTenantDetails(
+    tenantId: string,
+    updates: { name?: string; description?: string },
+  ): Promise<Tenant> {
+    const tenant = await this.tenantModel.findOneAndUpdate(
+      { tenantId },
+      { $set: updates },
+      { new: true },
+    ).exec();
+
+    if (!tenant) {
+      throw new NotFoundException(`Tenant "${tenantId}" not found`);
+    }
+
+    // Keep in-memory config in sync
+    if (TENANT_CONFIGS[tenantId]) {
+      if (updates.name !== undefined) TENANT_CONFIGS[tenantId].name = updates.name;
+      if (updates.description !== undefined) TENANT_CONFIGS[tenantId].description = updates.description;
+    }
+
+    this.logger.log(`Updated details for tenant ${tenantId}`);
+    return tenant;
   }
 
   /**

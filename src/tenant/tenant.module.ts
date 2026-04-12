@@ -8,8 +8,10 @@ import { GoogleCalendarService } from './google-calendar.service';
 import { GoogleOAuthToken, GoogleOAuthTokenSchema } from './entities/google-oauth-token.entity';
 import { ProvisioningService } from './provisioning.service';
 import { TenantPublicController } from './tenant-public.controller';
+import { TenantSelfController } from './tenant-self.controller';
 import { ProductModule } from '../product/product.module';
 import { CalendarModule } from '../calendar/calendar.module';
+import { UsersModule } from '../users/users.module';
 import { User, UserSchema } from '../users/entities/user.entity';
 import { Tenant, TenantSchema } from './schemas/tenant.schema';
 
@@ -21,9 +23,10 @@ import { Tenant, TenantSchema } from './schemas/tenant.schema';
       { name: Tenant.name, schema: TenantSchema },
     ]),
     ProductModule,
+    UsersModule,
     forwardRef(() => CalendarModule),
   ],
-  controllers: [GoogleOAuthController, TenantPublicController],
+  controllers: [GoogleOAuthController, TenantPublicController, TenantSelfController],
   providers: [TenantService, TenantGuard, GoogleOAuthService, GoogleCalendarService, ProvisioningService],
   exports: [TenantService, TenantGuard, GoogleOAuthService, GoogleCalendarService, ProvisioningService],
 })

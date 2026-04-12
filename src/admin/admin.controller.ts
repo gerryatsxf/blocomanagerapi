@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Patch, Body, Param, Query, UseGuards, HttpCode, HttpStatus, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Patch, Body, Param, Query, UseGuards, HttpCode, HttpStatus, Req, ForbiddenException } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
@@ -375,8 +375,13 @@ export class AdminController {
   @UseGuards(JwtAuthGuard, AdminOrTenantAdminGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get product by ID (Admin or Tenant Admin)' })
-  async getProduct(@Param('id') id: string) {
-    return this.productService.findOne(id);
+  async getProduct(@Param('id') id: string, @Req() request: Request) {
+    const product = await this.productService.findOne(id);
+    const adminUser = request['adminUser'];
+    if (adminUser.role !== UserRole.SUPER_ADMIN && product.tenant !== adminUser.tenant) {
+      throw new ForbiddenException('Access denied: product belongs to another tenant');
+    }
+    return product;
   }
 
   @Patch('products/:id')
@@ -386,7 +391,13 @@ export class AdminController {
   async updateProduct(
     @Param('id') id: string,
     @Body() updateProductDto: UpdateProductDto,
+    @Req() request: Request,
   ) {
+    const product = await this.productService.findOne(id);
+    const adminUser = request['adminUser'];
+    if (adminUser.role !== UserRole.SUPER_ADMIN && product.tenant !== adminUser.tenant) {
+      throw new ForbiddenException('Access denied: product belongs to another tenant');
+    }
     return this.productService.update(id, updateProductDto);
   }
 
@@ -394,7 +405,12 @@ export class AdminController {
   @UseGuards(JwtAuthGuard, AdminOrTenantAdminGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Toggle product active status (Admin or Tenant Admin)' })
-  async toggleProductActive(@Param('id') id: string) {
+  async toggleProductActive(@Param('id') id: string, @Req() request: Request) {
+    const product = await this.productService.findOne(id);
+    const adminUser = request['adminUser'];
+    if (adminUser.role !== UserRole.SUPER_ADMIN && product.tenant !== adminUser.tenant) {
+      throw new ForbiddenException('Access denied: product belongs to another tenant');
+    }
     return this.productService.toggleActive(id);
   }
 
