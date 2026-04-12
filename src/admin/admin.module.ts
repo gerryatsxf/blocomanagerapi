@@ -20,6 +20,8 @@ import { CalendarModule } from '../calendar/calendar.module';
 import { BookingModule } from '../booking/booking.module';
 import { AvailabilityModule } from '../availability/availability.module';
 import { CRMContactSchema } from './schemas/contact.schema';
+import { Tenant, TenantSchema } from '../tenant/schemas/tenant.schema';
+import { Subscription, SubscriptionSchema } from '../subscription/schemas/subscription.schema';
 
 @Module({
   imports: [
@@ -27,6 +29,8 @@ import { CRMContactSchema } from './schemas/contact.schema';
       { name: User.name, schema: UserSchema },
       { name: SuperAdminGrant.name, schema: SuperAdminGrantSchema },
       { name: 'CRMContact', schema: CRMContactSchema },
+      { name: Tenant.name, schema: TenantSchema },
+      { name: Subscription.name, schema: SubscriptionSchema },
     ]),
     UsersModule,
     SessionModule,

@@ -166,6 +166,32 @@ export class AdminController {
     return this.adminService.getAllTenants();
   }
 
+  @Get('tenants/stale')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get stale tenants (Super Admin only)',
+    description: 'Returns tenants with canceled/unpaid/none subscription status, enriched with user count and last login date.',
+  })
+  async getStaleTenants() {
+    return this.adminService.getStaleTenants();
+  }
+
+  @Delete('tenants/:tenantId/purge')
+  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Purge a stale tenant (Super Admin only)',
+    description: 'Permanently deletes a stale tenant, its users, and subscription records. Only allowed for canceled/unpaid/none tenants.',
+  })
+  @ApiResponse({ status: 200, description: 'Tenant purged successfully' })
+  @ApiResponse({ status: 400, description: 'Tenant subscription is still active' })
+  @ApiResponse({ status: 404, description: 'Tenant not found' })
+  async purgeStaleTenant(@Param('tenantId') tenantId: string) {
+    return this.adminService.purgeStaleTenant(tenantId);
+  }
+
   @Get('tenants/:tenantId')
   @ApiOperation({ summary: 'Get tenant data' })
   async getTenantData(@Param('tenantId') tenantId: string) {

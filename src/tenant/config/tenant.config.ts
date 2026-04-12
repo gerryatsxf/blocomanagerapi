@@ -79,3 +79,15 @@ export function addTenantToConfig(config: TenantConfig): TenantConfig {
   TENANT_DOMAIN_MAPPING[config.domain] = config.tenantId;
   return config;
 }
+
+/**
+ * Remove a tenant from in-memory configuration
+ * @param tenantId - The tenant ID to remove
+ */
+export function removeTenantFromConfig(tenantId: string): void {
+  const config = TENANT_CONFIGS[tenantId];
+  if (config) {
+    delete TENANT_DOMAIN_MAPPING[config.domain];
+    delete TENANT_CONFIGS[tenantId];
+  }
+}

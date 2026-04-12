@@ -1,9 +1,9 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, BadRequestException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument, UserRole } from '../users/entities/user.entity';
 import { SuperAdminGrant } from './entities/super-admin-grant.entity';
-import { TENANT_CONFIGS, addTenantToConfig } from '../tenant/config/tenant.config';
+import { TENANT_CONFIGS, addTenantToConfig, removeTenantFromConfig } from '../tenant/config/tenant.config';
 import { SessionService } from '../session/session.service';
 import { NotificationService } from '../notification/notification.service';
 import { ConfigService } from '@nestjs/config';
@@ -11,13 +11,19 @@ import { EncryptionService } from '../encryption/encryption.service';
 import { CreateTenantDto } from './dto/create-tenant.dto';
 import { UpdateTenantDto } from './dto/update-tenant.dto';
 import { ProvisioningService } from '../tenant/provisioning.service';
+import { Tenant, TenantDocument } from '../tenant/schemas/tenant.schema';
+import { Subscription, SubscriptionDocument } from '../subscription/schemas/subscription.schema';
 import * as crypto from 'crypto';
 
 @Injectable()
 export class AdminService {
+  private readonly logger = new Logger(AdminService.name);
+
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(SuperAdminGrant.name) private superAdminGrantModel: Model<SuperAdminGrant>,
+    @InjectModel(Tenant.name) private tenantModel: Model<TenantDocument>,
+    @InjectModel(Subscription.name) private subscriptionModel: Model<SubscriptionDocument>,
     private sessionService: SessionService,
     private notificationService: NotificationService,
     private configService: ConfigService,
@@ -263,6 +269,90 @@ export class AdminService {
     );
 
     return { data: tenantData };
+  }
+
+  /**
+   * Get stale tenants: canceled, unpaid, or no subscription + no user activity.
+   * Joins with User model to compute last login per tenant.
+   */
+  async getStaleTenants() {
+    const staleStatuses = ['canceled', 'unpaid', 'none'];
+    const staleTenants = await this.tenantModel
+      .find({ subscriptionStatus: { $in: staleStatuses } })
+      .lean()
+      .exec();
+
+    // For each stale tenant, get user count + last login
+    const enriched = await Promise.all(
+      staleTenants.map(async (tenant) => {
+        const users = await this.userModel
+          .find({ tenant: tenant.tenantId })
+          .select('lastLoginAt createdAt email')
+          .lean()
+          .exec();
+
+        const lastLoginDates = users
+          .map(u => (u as any).lastLoginAt)
+          .filter(Boolean)
+          .map(d => new Date(d).getTime());
+
+        const lastLoginAt = lastLoginDates.length > 0
+          ? new Date(Math.max(...lastLoginDates))
+          : null;
+
+        return {
+          _id: (tenant as any)._id,
+          tenantId: tenant.tenantId,
+          domain: tenant.domain,
+          name: tenant.name,
+          subscriptionStatus: tenant.subscriptionStatus,
+          createdAt: (tenant as any).createdAt,
+          updatedAt: (tenant as any).updatedAt,
+          userCount: users.length,
+          lastLoginAt,
+        };
+      }),
+    );
+
+    return { data: enriched };
+  }
+
+  /**
+   * Purge a stale tenant: delete tenant doc, users, subscriptions, and remove from in-memory config.
+   * Only allowed for tenants with stale subscription status.
+   */
+  async purgeStaleTenant(tenantId: string) {
+    const tenant = await this.tenantModel.findOne({ tenantId }).exec();
+    if (!tenant) {
+      throw new NotFoundException(`Tenant "${tenantId}" not found`);
+    }
+
+    const safeStatuses = ['canceled', 'unpaid', 'none'];
+    if (!safeStatuses.includes(tenant.subscriptionStatus || 'none')) {
+      throw new BadRequestException(
+        `Cannot purge tenant with subscription status "${tenant.subscriptionStatus}". Only canceled/unpaid/none tenants can be purged.`,
+      );
+    }
+
+    // Delete users belonging to this tenant
+    const userResult = await this.userModel.deleteMany({ tenant: tenantId }).exec();
+    // Delete subscription records
+    const subResult = await this.subscriptionModel.deleteMany({ tenantId }).exec();
+    // Delete tenant document from MongoDB
+    await this.tenantModel.deleteOne({ tenantId }).exec();
+    // Remove from in-memory config
+    removeTenantFromConfig(tenantId);
+
+    this.logger.warn(
+      `Purged tenant "${tenantId}": ${userResult.deletedCount} users, ${subResult.deletedCount} subscriptions deleted`,
+    );
+
+    return {
+      success: true,
+      tenantId,
+      deletedUsers: userResult.deletedCount,
+      deletedSubscriptions: subResult.deletedCount,
+    };
   }
 
   async getTenantData(tenantId: string) {
