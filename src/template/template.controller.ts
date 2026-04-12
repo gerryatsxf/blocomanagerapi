@@ -1,23 +1,28 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Req, UseInterceptors, UploadedFile, BadRequestException, Res } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, Req, UseInterceptors, UploadedFile, BadRequestException, Res, Logger } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiConsumes } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Request, Response } from 'express';
 import { extname } from 'path';
-import * as fs from 'fs';
-import * as path from 'path';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminOrTenantAdminGuard } from '../admin/guards/admin-or-tenant-admin.guard';
 import { TemplateService } from './template.service';
 import { CreateTemplateDto } from './dto/create-template.dto';
 import { UpdateTemplateDto } from './dto/update-template.dto';
 import { UserRole } from '../users/entities/user.entity';
+import { StorageConfigService } from '../storage-config/storage-config.service';
+import { StorageServiceFactory } from './services/storage.service';
 
 @ApiTags('Templates')
 @Controller('admin/templates')
 @UseGuards(JwtAuthGuard, AdminOrTenantAdminGuard)
 @ApiBearerAuth()
 export class TemplateController {
-  constructor(private readonly templateService: TemplateService) {}
+  private readonly logger = new Logger(TemplateController.name);
+
+  constructor(
+    private readonly templateService: TemplateService,
+    private readonly storageConfigService: StorageConfigService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Create or update template for tenant' })
@@ -91,27 +96,21 @@ export class TemplateController {
       throw new BadRequestException('imageType must be either "logo" or "profile"');
     }
 
-    // Save file manually with correct filename
-    const uploadPath = path.join(process.cwd(), 'public', 'tenant', 'assets');
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
+    // Get the correct storage service for this tenant
+    const { provider, config } = await this.storageConfigService.getConfigForTenant(tenantId);
+    const storageService = StorageServiceFactory.create(provider, config);
+    this.logger.log(`Uploading ${imageType} for tenant ${tenantId} via ${provider}`);
 
-    const ext = extname(file.originalname);
-    const filename = `${tenantId}_${imageType}${ext}`;
-    const filePath = path.join(uploadPath, filename);
-
-    // Write file
-    fs.writeFileSync(filePath, file.buffer);
-
-    const fileUrl = `/tenant/assets/${filename}`;
+    const filename = await storageService.uploadFile(file, tenantId, imageType);
+    const fileUrl = storageService.getFileUrl(filename);
 
     return {
       success: true,
       message: 'Image uploaded successfully',
       imageType,
       url: fileUrl,
-      filename: filename,
+      filename,
+      provider,
     };
   }
 
@@ -128,26 +127,19 @@ export class TemplateController {
       };
     }
 
-    const assetsPath = path.join(process.cwd(), 'public', 'tenant', 'assets');
-    const images = { logo: null, profile: null };
+    const { provider, config } = await this.storageConfigService.getConfigForTenant(tenantId);
+    const storageService = StorageServiceFactory.create(provider, config);
+    const images: Record<string, string | null> = { logo: null, profile: null };
 
     try {
-      const files = fs.readdirSync(assetsPath);
-      
-      // Find logo image
-      const logoFile = files.find(f => f.startsWith(`${tenantId}_logo`));
-      if (logoFile) {
-        images.logo = `/tenant/assets/${logoFile}`;
-      }
+      const files = await storageService.listFiles(tenantId);
+      const logoFile = files.find((f) => f.includes(`${tenantId}_logo`));
+      if (logoFile) images.logo = storageService.getFileUrl(logoFile);
 
-      // Find profile image
-      const profileFile = files.find(f => f.startsWith(`${tenantId}_profile`));
-      if (profileFile) {
-        images.profile = `/tenant/assets/${profileFile}`;
-      }
+      const profileFile = files.find((f) => f.includes(`${tenantId}_profile`));
+      if (profileFile) images.profile = storageService.getFileUrl(profileFile);
     } catch (error) {
-      // Directory might not exist yet
-      console.log('Assets directory not found or empty');
+      this.logger.warn(`Failed to list images for tenant ${tenantId}: ${error.message}`);
     }
 
     return images;
@@ -174,24 +166,21 @@ export class TemplateController {
       throw new BadRequestException('imageType must be either "logo" or "profile"');
     }
 
-    const assetsPath = path.join(process.cwd(), 'public', 'tenant', 'assets');
-    
+    const { provider, config } = await this.storageConfigService.getConfigForTenant(tenantId);
+    const storageService = StorageServiceFactory.create(provider, config);
+
     try {
-      const files = fs.readdirSync(assetsPath);
-      const imageFile = files.find(f => f.startsWith(`${tenantId}_${imageType}`));
-      
+      const files = await storageService.listFiles(tenantId);
+      const imageFile = files.find((f) => f.includes(`${tenantId}_${imageType}`));
+
       if (imageFile) {
-        const filePath = path.join(assetsPath, imageFile);
-        fs.unlinkSync(filePath);
+        await storageService.deleteFile(imageFile);
         return {
           success: true,
           message: `${imageType === 'logo' ? 'Logo' : 'Profile photo'} deleted successfully`,
         };
       } else {
-        return {
-          success: false,
-          message: 'Image not found',
-        };
+        return { success: false, message: 'Image not found' };
       }
     } catch (error) {
       throw new BadRequestException(`Failed to delete image: ${error.message}`);

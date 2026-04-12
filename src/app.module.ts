@@ -27,6 +27,7 @@ import { ContactModule } from './contact/contact.module';
 import { AdminModule } from './admin/admin.module';
 import { TemplateModule } from './template/template.module';
 import { SubscriptionModule } from './subscription/subscription.module';
+import { StorageConfigModule } from './storage-config/storage-config.module';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 
 @Module({
@@ -75,6 +76,7 @@ import { RequestLoggerMiddleware } from './common/middleware/request-logger.midd
     CartModule,
     ChatModule,
     SubscriptionModule,
+    StorageConfigModule,
   ],
   controllers: [AppController],
   providers: [

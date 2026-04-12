@@ -1,4 +1,4 @@
-import { StorageProvider } from '../enums/storage-provider.enum';
+import { StorageProviderType } from '../../storage-config/schemas/storage-config.schema';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -6,6 +6,7 @@ export interface IStorageService {
   uploadFile(file: Express.Multer.File, tenantId: string, imageType: string): Promise<string>;
   deleteFile(filename: string): Promise<void>;
   getFileUrl(filename: string): string;
+  listFiles(tenantId: string): Promise<string[]>;
 }
 
 export class LocalStorageService implements IStorageService {
@@ -13,7 +14,6 @@ export class LocalStorageService implements IStorageService {
 
   constructor(basePath?: string) {
     this.basePath = basePath || path.join(process.cwd(), 'public', 'tenant', 'assets');
-    // Ensure directory exists
     if (!fs.existsSync(this.basePath)) {
       fs.mkdirSync(this.basePath, { recursive: true });
     }
@@ -23,10 +23,7 @@ export class LocalStorageService implements IStorageService {
     const ext = path.extname(file.originalname);
     const filename = `${tenantId}_${imageType}${ext}`;
     const filePath = path.join(this.basePath, filename);
-
-    // Move file to destination
     fs.writeFileSync(filePath, file.buffer || fs.readFileSync(file.path));
-
     return filename;
   }
 
@@ -40,85 +37,106 @@ export class LocalStorageService implements IStorageService {
   getFileUrl(filename: string): string {
     return `/tenant/assets/${filename}`;
   }
+
+  async listFiles(tenantId: string): Promise<string[]> {
+    try {
+      const files = fs.readdirSync(this.basePath);
+      return files.filter((f) => f.startsWith(`${tenantId}_`));
+    } catch {
+      return [];
+    }
+  }
 }
 
-// Placeholder for future AWS S3 implementation
-export class S3StorageService implements IStorageService {
-  constructor(config: any) {
-    // TODO: Initialize AWS S3 client
+/**
+ * S3-compatible storage — works for both AWS S3 and DigitalOcean Spaces.
+ * SDK not installed yet — stub that throws descriptive errors.
+ */
+export class S3CompatibleStorageService implements IStorageService {
+  private readonly providerLabel: string;
+
+  constructor(
+    private readonly config: Record<string, any>,
+    providerLabel: string = 'S3-Compatible',
+  ) {
+    this.providerLabel = providerLabel;
   }
 
-  async uploadFile(file: Express.Multer.File, tenantId: string, imageType: string): Promise<string> {
-    // TODO: Implement S3 upload
-    throw new Error('S3 storage not yet implemented');
+  async uploadFile(): Promise<string> {
+    throw new Error(`${this.providerLabel} upload not implemented — install @aws-sdk/client-s3 and configure credentials in Admin → Storage`);
   }
-
-  async deleteFile(filename: string): Promise<void> {
-    // TODO: Implement S3 delete
-    throw new Error('S3 storage not yet implemented');
+  async deleteFile(): Promise<void> {
+    throw new Error(`${this.providerLabel} delete not implemented`);
   }
-
   getFileUrl(filename: string): string {
-    // TODO: Return S3 URL
-    throw new Error('S3 storage not yet implemented');
+    if (this.config.endpoint && this.config.bucket) {
+      return `${this.config.endpoint}/${this.config.bucket}/${filename}`;
+    }
+    if (this.config.bucket && this.config.region) {
+      return `https://${this.config.bucket}.s3.${this.config.region}.amazonaws.com/${filename}`;
+    }
+    throw new Error(`${this.providerLabel} getFileUrl not configured`);
+  }
+  async listFiles(): Promise<string[]> {
+    throw new Error(`${this.providerLabel} listFiles not implemented`);
   }
 }
 
-// Placeholder for future Azure Blob implementation
 export class AzureBlobStorageService implements IStorageService {
-  constructor(config: any) {
-    // TODO: Initialize Azure Blob client
-  }
+  constructor(private readonly config: Record<string, any>) {}
 
-  async uploadFile(file: Express.Multer.File, tenantId: string, imageType: string): Promise<string> {
-    // TODO: Implement Azure Blob upload
-    throw new Error('Azure Blob storage not yet implemented');
+  async uploadFile(): Promise<string> {
+    throw new Error('Azure Blob upload not implemented — install @azure/storage-blob and configure credentials in Admin → Storage');
   }
-
-  async deleteFile(filename: string): Promise<void> {
-    // TODO: Implement Azure Blob delete
-    throw new Error('Azure Blob storage not yet implemented');
+  async deleteFile(): Promise<void> {
+    throw new Error('Azure Blob delete not implemented');
   }
-
   getFileUrl(filename: string): string {
-    // TODO: Return Azure Blob URL
-    throw new Error('Azure Blob storage not yet implemented');
+    if (this.config.containerName) {
+      return `https://${this.config.containerName}.blob.core.windows.net/${filename}`;
+    }
+    throw new Error('Azure Blob getFileUrl not configured');
+  }
+  async listFiles(): Promise<string[]> {
+    throw new Error('Azure Blob listFiles not implemented');
   }
 }
 
-// Placeholder for future Google Cloud Storage implementation
 export class GoogleCloudStorageService implements IStorageService {
-  constructor(config: any) {
-    // TODO: Initialize Google Cloud Storage client
-  }
+  constructor(private readonly config: Record<string, any>) {}
 
-  async uploadFile(file: Express.Multer.File, tenantId: string, imageType: string): Promise<string> {
-    // TODO: Implement Google Cloud Storage upload
-    throw new Error('Google Cloud Storage not yet implemented');
+  async uploadFile(): Promise<string> {
+    throw new Error('Google Cloud Storage upload not implemented — install @google-cloud/storage and configure credentials in Admin → Storage');
   }
-
-  async deleteFile(filename: string): Promise<void> {
-    // TODO: Implement Google Cloud Storage delete
-    throw new Error('Google Cloud Storage not yet implemented');
+  async deleteFile(): Promise<void> {
+    throw new Error('Google Cloud Storage delete not implemented');
   }
-
   getFileUrl(filename: string): string {
-    // TODO: Return Google Cloud Storage URL
-    throw new Error('Google Cloud Storage not yet implemented');
+    if (this.config.bucketName) {
+      return `https://storage.googleapis.com/${this.config.bucketName}/${filename}`;
+    }
+    throw new Error('Google Cloud Storage getFileUrl not configured');
+  }
+  async listFiles(): Promise<string[]> {
+    throw new Error('Google Cloud Storage listFiles not implemented');
   }
 }
 
-// Factory to create storage service based on provider
+/**
+ * Factory to create the correct storage service instance from a provider + config.
+ */
 export class StorageServiceFactory {
-  static createStorageService(provider: StorageProvider, config?: any): IStorageService {
+  static create(provider: StorageProviderType, config: Record<string, any> = {}): IStorageService {
     switch (provider) {
-      case StorageProvider.LOCAL:
-        return new LocalStorageService(config?.basePath);
-      case StorageProvider.AWS_S3:
-        return new S3StorageService(config);
-      case StorageProvider.AZURE_BLOB:
+      case StorageProviderType.LOCAL:
+        return new LocalStorageService(config.basePath);
+      case StorageProviderType.AWS_S3:
+        return new S3CompatibleStorageService(config, 'Amazon S3');
+      case StorageProviderType.DO_SPACES:
+        return new S3CompatibleStorageService(config, 'DigitalOcean Spaces');
+      case StorageProviderType.AZURE_BLOB:
         return new AzureBlobStorageService(config);
-      case StorageProvider.GOOGLE_CLOUD:
+      case StorageProviderType.GOOGLE_CLOUD:
         return new GoogleCloudStorageService(config);
       default:
         return new LocalStorageService();
