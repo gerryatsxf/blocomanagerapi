@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
@@ -39,11 +39,11 @@ const options = {
     PassportModule,
     JwtModule.registerAsync(options),
     MongooseModule.forFeature([{ name: User.name, schema: UserSchema }]),
-    SessionModule,
-    TenantModule,
-    UsersModule,
+    forwardRef(() => SessionModule),
+    forwardRef(() => TenantModule),
+    forwardRef(() => UsersModule),
     PasswordResetModule,
-    NotificationModule,
+    forwardRef(() => NotificationModule),
     EmailChangeModule,
   ],
   providers: [AuthService, GoogleAuthService, JwtStrategy, EncryptionService, ConfigService, CleanupService],
