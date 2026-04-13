@@ -12,7 +12,7 @@ import { UsersModule } from '../users/users.module';
       { name: StorageConfig.name, schema: StorageConfigSchema },
     ]),
     EncryptionModule,
-    UsersModule, // Required by SuperAdminGuard
+    UsersModule, // Required by PlatformOwnerGuard
   ],
   controllers: [StorageConfigController],
   providers: [StorageConfigService],

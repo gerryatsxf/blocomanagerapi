@@ -1,14 +1,14 @@
 import { Controller, Get, Post, Patch, Delete, Body, Param, UseGuards, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
+import { PlatformOwnerGuard } from '../admin/guards/platform-owner.guard';
 import { StorageConfigService } from './storage-config.service';
 import { CreateStorageConfigDto, UpdateStorageConfigDto } from './dto/storage-config.dto';
 import { StorageProviderLabels, StorageProviderType } from './schemas/storage-config.schema';
 
 @ApiTags('Storage Config')
 @Controller('admin/storage-configs')
-@UseGuards(JwtAuthGuard, SuperAdminGuard)
+@UseGuards(JwtAuthGuard, PlatformOwnerGuard)
 @ApiBearerAuth()
 export class StorageConfigController {
   constructor(private readonly storageConfigService: StorageConfigService) {}

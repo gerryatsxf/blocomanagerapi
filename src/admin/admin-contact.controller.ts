@@ -17,6 +17,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminOrTenantAdminGuard } from './guards/admin-or-tenant-admin.guard';
 import { UserRole } from '../users/entities/user.entity';
+import { isPlatformRole } from '../common/platform.constants';
 
 @ApiTags('Admin - Contacts')
 @Controller('admin/contacts')
@@ -31,7 +32,7 @@ export class AdminContactController {
   @ApiOperation({ summary: 'Get all contacts for tenant' })
   async getAllContacts(@Req() request: Request) {
     const adminUser = request['adminUser'];
-    const tenantId = adminUser.role === UserRole.SUPER_ADMIN
+    const tenantId = isPlatformRole(adminUser.role)
       ? request.query.tenantId as string
       : adminUser.tenant;
 
@@ -46,7 +47,7 @@ export class AdminContactController {
   @ApiOperation({ summary: 'Get contact by ID' })
   async getContact(@Param('id') id: string, @Req() request: Request) {
     const adminUser = request['adminUser'];
-    const tenantId = adminUser.role === UserRole.SUPER_ADMIN
+    const tenantId = isPlatformRole(adminUser.role)
       ? request.query.tenantId as string
       : adminUser.tenant;
 
@@ -63,7 +64,7 @@ export class AdminContactController {
   @ApiOperation({ summary: 'Create new contact' })
   async createContact(@Body() createContactDto: any, @Req() request: Request) {
     const adminUser = request['adminUser'];
-    const tenantId = adminUser.role === UserRole.SUPER_ADMIN
+    const tenantId = isPlatformRole(adminUser.role)
       ? createContactDto.tenantId
       : adminUser.tenant;
 
@@ -88,7 +89,7 @@ export class AdminContactController {
     @Req() request: Request,
   ) {
     const adminUser = request['adminUser'];
-    const tenantId = adminUser.role === UserRole.SUPER_ADMIN
+    const tenantId = isPlatformRole(adminUser.role)
       ? request.query.tenantId as string
       : adminUser.tenant;
 
@@ -109,7 +110,7 @@ export class AdminContactController {
   @ApiOperation({ summary: 'Delete contact' })
   async deleteContact(@Param('id') id: string, @Req() request: Request) {
     const adminUser = request['adminUser'];
-    const tenantId = adminUser.role === UserRole.SUPER_ADMIN
+    const tenantId = isPlatformRole(adminUser.role)
       ? request.query.tenantId as string
       : adminUser.tenant;
 

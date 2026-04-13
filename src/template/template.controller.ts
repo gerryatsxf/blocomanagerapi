@@ -9,6 +9,7 @@ import { TemplateService } from './template.service';
 import { CreateTemplateDto } from './dto/create-template.dto';
 import { UpdateTemplateDto } from './dto/update-template.dto';
 import { UserRole } from '../users/entities/user.entity';
+import { isPlatformRole } from '../common/platform.constants';
 import { StorageConfigService } from '../storage-config/storage-config.service';
 import { StorageServiceFactory } from './services/storage.service';
 
@@ -30,7 +31,7 @@ export class TemplateController {
     const adminUser = request['adminUser'];
     
     // Ensure tenant admins can only create templates for their own tenant
-    if (adminUser.role !== UserRole.SUPER_ADMIN && createTemplateDto.templateTenant !== adminUser.tenant) {
+    if (!isPlatformRole(adminUser.role) && createTemplateDto.templateTenant !== adminUser.tenant) {
       return {
         success: false,
         message: 'Cannot create template for another tenant',
@@ -46,7 +47,7 @@ export class TemplateController {
     const adminUser = request['adminUser'];
     
     // Validate tenant access
-    if (adminUser.role !== UserRole.SUPER_ADMIN && adminUser.tenant !== tenantId) {
+    if (!isPlatformRole(adminUser.role) && adminUser.tenant !== tenantId) {
       return {
         success: false,
         message: 'Cannot view templates for another tenant',
@@ -81,7 +82,7 @@ export class TemplateController {
     const adminUser = request['adminUser'];
     
     // Validate tenant access
-    if (adminUser.role !== UserRole.SUPER_ADMIN && adminUser.tenant !== tenantId) {
+    if (!isPlatformRole(adminUser.role) && adminUser.tenant !== tenantId) {
       return {
         success: false,
         message: 'Cannot upload image for another tenant',
@@ -120,7 +121,7 @@ export class TemplateController {
     const adminUser = request['adminUser'];
     
     // Validate tenant access
-    if (adminUser.role !== UserRole.SUPER_ADMIN && adminUser.tenant !== tenantId) {
+    if (!isPlatformRole(adminUser.role) && adminUser.tenant !== tenantId) {
       return {
         success: false,
         message: 'Cannot view images for another tenant',
@@ -155,7 +156,7 @@ export class TemplateController {
     const adminUser = request['adminUser'];
     
     // Validate tenant access
-    if (adminUser.role !== UserRole.SUPER_ADMIN && adminUser.tenant !== tenantId) {
+    if (!isPlatformRole(adminUser.role) && adminUser.tenant !== tenantId) {
       return {
         success: false,
         message: 'Cannot delete image for another tenant',
@@ -197,7 +198,7 @@ export class TemplateController {
     const adminUser = request['adminUser'];
     
     // Validate tenant access
-    if (adminUser.role !== UserRole.SUPER_ADMIN && adminUser.tenant !== tenantId) {
+    if (!isPlatformRole(adminUser.role) && adminUser.tenant !== tenantId) {
       return {
         success: false,
         message: 'Cannot view template for another tenant',
@@ -218,7 +219,7 @@ export class TemplateController {
     const adminUser = request['adminUser'];
     
     // Validate tenant access
-    if (adminUser.role !== UserRole.SUPER_ADMIN && adminUser.tenant !== tenantId) {
+    if (!isPlatformRole(adminUser.role) && adminUser.tenant !== tenantId) {
       return {
         success: false,
         message: 'Cannot update template for another tenant',
@@ -238,7 +239,7 @@ export class TemplateController {
     const adminUser = request['adminUser'];
     
     // Validate tenant access
-    if (adminUser.role !== UserRole.SUPER_ADMIN && adminUser.tenant !== tenantId) {
+    if (!isPlatformRole(adminUser.role) && adminUser.tenant !== tenantId) {
       return {
         success: false,
         message: 'Cannot delete template for another tenant',

@@ -3,7 +3,10 @@ import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { google } from 'googleapis';
 import { UsersService } from '../users/users.service';
-import { UserRole } from '../users/entities/user.entity';import { SessionService } from '../session/session.service';import * as crypto from 'crypto';
+import { UserRole } from '../users/entities/user.entity';
+import { PLATFORM_ID } from '../common/platform.constants';
+import { SessionService } from '../session/session.service';
+import * as crypto from 'crypto';
 
 @Injectable()
 export class GoogleAuthService {
@@ -79,7 +82,7 @@ export class GoogleAuthService {
       let user = await this.usersService.findByEmail(data.email);
       
       const adminEmail = this.configService.get<string>('ADMIN_EMAIL');
-      const isSuperAdmin = data.email === adminEmail;
+      const isPlatformOwner = data.email === adminEmail;
 
       if (!user) {
         // Create new user
@@ -99,12 +102,12 @@ export class GoogleAuthService {
         // Mark email as verified (Google already verified it)
         await this.usersService.verifyEmail(user._id.toString());
 
-        // If this is the admin email, grant super admin role
-        if (isSuperAdmin) {
-          this.logger.log(`Granting super admin role to: ${data.email}`);
+        // If this is the admin email, grant platform owner role
+        if (isPlatformOwner) {
+          this.logger.log(`Granting platform owner role to: ${data.email}`);
           const updatedUser = await this.usersService.findByEmail(data.email);
           if (updatedUser) {
-            (updatedUser as any).role = UserRole.SUPER_ADMIN;
+            (updatedUser as any).role = UserRole.PLATFORM_OWNER;
             await updatedUser.save();
             user = updatedUser;
             this.logger.log(`User role updated: ${(user as any).role}`);
@@ -126,10 +129,10 @@ export class GoogleAuthService {
       } else {
         this.logger.log(`Existing user logging in: ${data.email}, current role: ${(user as any).role}`);
         
-        // If user exists and is the admin email, ensure they have super admin role
-        if (isSuperAdmin && (user as any).role !== UserRole.SUPER_ADMIN) {
-          this.logger.log(`Upgrading ${data.email} to super admin`);
-          (user as any).role = UserRole.SUPER_ADMIN;
+        // If user exists and is the admin email, ensure they have platform owner role
+        if (isPlatformOwner && (user as any).role !== UserRole.PLATFORM_OWNER) {
+          this.logger.log(`Upgrading ${data.email} to platform owner`);
+          (user as any).role = UserRole.PLATFORM_OWNER;
           await user.save();
           this.logger.log(`User role upgraded: ${(user as any).role}`);
         }
@@ -139,7 +142,7 @@ export class GoogleAuthService {
 
       // Generate JWT token
       // Create a session for this user
-      const userTenant = (user as any).tenant || 'blocomanager';
+      const userTenant = (user as any).tenant || PLATFORM_ID;
       const session = await this.sessionService.create(userTenant);
       
       // Update session with userId and mark as authenticated

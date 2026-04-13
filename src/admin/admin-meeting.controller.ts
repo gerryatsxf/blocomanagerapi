@@ -21,6 +21,7 @@ import { CreateMeetingDto } from '../meeting/dto/create-meeting.dto';
 import { UpdateMeetingDto } from '../meeting/dto/update-meeting.dto';
 import { Request } from 'express';
 import { UserRole } from '../users/entities/user.entity';
+import { isPlatformRole } from '../common/platform.constants';
 import { GoogleOAuthService } from '../tenant/google-oauth.service';
 import { GoogleCalendarProvider } from '../calendar/services/google-calendar.provider';
 import { ConfigService } from '@nestjs/config';
@@ -47,7 +48,7 @@ export class AdminMeetingController {
     @Query('status') status?: MeetingStatus,
   ): Promise<Meeting[]> {
     const adminUser = request['adminUser'];
-    const tenantId = adminUser.role === UserRole.SUPER_ADMIN
+    const tenantId = isPlatformRole(adminUser.role)
       ? request.query.tenantId as string
       : adminUser.tenant;
 
@@ -94,7 +95,7 @@ export class AdminMeetingController {
     @Req() request: Request,
   ): Promise<Meeting> {
     const adminUser = request['adminUser'];
-    const tenantId = adminUser.role === UserRole.SUPER_ADMIN
+    const tenantId = isPlatformRole(adminUser.role)
       ? createMeetingDto.tenantId
       : adminUser.tenant;
 
@@ -126,7 +127,7 @@ export class AdminMeetingController {
     @Req() request: Request,
   ): Promise<Meeting> {
     const adminUser = request['adminUser'];
-    const tenantId = adminUser.role === UserRole.SUPER_ADMIN
+    const tenantId = isPlatformRole(adminUser.role)
       ? request.query.tenantId as string
       : adminUser.tenant;
 
@@ -145,7 +146,7 @@ export class AdminMeetingController {
     @Req() request: Request,
   ): Promise<Meeting> {
     const adminUser = request['adminUser'];
-    const tenantId = adminUser.role === UserRole.SUPER_ADMIN
+    const tenantId = isPlatformRole(adminUser.role)
       ? request.body.tenantId
       : adminUser.tenant;
 
@@ -177,7 +178,7 @@ export class AdminMeetingController {
     @Req() request: Request,
   ): Promise<{ success: boolean; message: string }> {
     const adminUser = request['adminUser'];
-    const tenantId = adminUser.role === UserRole.SUPER_ADMIN
+    const tenantId = isPlatformRole(adminUser.role)
       ? request.query.tenantId as string
       : adminUser.tenant;
 

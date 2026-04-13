@@ -1,6 +1,7 @@
 /**
- * Tenant Configuration
- * Maps tenant IDs to their configuration including authorized provider emails
+ * Tenant & Platform Email Configuration
+ * Maps tenant IDs (and PLATFORM_ID) to their configuration including authorized provider emails.
+ * The 'blocomanager' key is the platform itself (PLATFORM_ID), not a tenant.
  */
 
 export interface TenantConfig {

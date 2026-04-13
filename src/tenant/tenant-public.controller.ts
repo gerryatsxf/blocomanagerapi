@@ -4,6 +4,7 @@ import { TENANT_CONFIGS } from './config/tenant.config';
 import { TenantConfig } from './interfaces/tenant-config.interface';
 import { DeploymentWebhookDto } from './dto/deployment-webhook.dto';
 import { ProductService } from '../product/product.service';
+import { isPlatformId } from '../common/platform.constants';
 import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 
@@ -81,7 +82,7 @@ export class TenantPublicController {
     
     // Filter by tenant if products have tenant field
     return products.filter((product: any) => 
-      !product.tenant || product.tenant === tenantId || product.tenant === 'blocomanager'
+      !product.tenant || product.tenant === tenantId || isPlatformId(product.tenant)
     );
   }
 
@@ -103,7 +104,7 @@ export class TenantPublicController {
     const product = await this.productService.findOne(productId);
     
     // Verify product belongs to this tenant
-    if ((product as any).tenant && (product as any).tenant !== tenantId && (product as any).tenant !== 'blocomanager') {
+    if ((product as any).tenant && (product as any).tenant !== tenantId && !isPlatformId((product as any).tenant)) {
       throw new NotFoundException(`Product not found for this tenant`);
     }
 

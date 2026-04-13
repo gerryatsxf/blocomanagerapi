@@ -6,6 +6,7 @@ import { SessionInfo } from '../session/decorators/session-info.decorator';
 import { SessionService } from '../session/session.service';
 import { UpdateSessionRequestDto } from '../session/dto/update-session-request.dto';
 import { TenantService } from '../tenant/tenant.service';
+import { isPlatformId } from '../common/platform.constants';
 
 @ApiTags('Free Time Slots')
 @Controller('free-slot')
@@ -33,7 +34,7 @@ export class FreeSlotController {
     // Prefer tenant resolved from request (X-Tenant-ID header in dev, or Origin domain),
     // fall back to session tenant if request-based resolution returns the default
     const requestTenant = this.tenantService.extractTenantFromRequest(req);
-    const tenantId = (requestTenant && requestTenant !== 'blocomanager')
+    const tenantId = (requestTenant && !isPlatformId(requestTenant))
       ? requestTenant
       : sessionInfo?.tenant;
 

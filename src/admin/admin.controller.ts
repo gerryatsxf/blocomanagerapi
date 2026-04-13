@@ -3,12 +3,13 @@ import { ApiTags, ApiBearerAuth, ApiOperation, ApiResponse } from '@nestjs/swagg
 import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformOwnerGuard } from './guards/platform-owner.guard';
 import { AdminOrTenantAdminGuard } from './guards/admin-or-tenant-admin.guard';
 import { VpnOnlyGuard } from './guards/vpn-only.guard';
 import { AdminService } from './admin.service';
 import { UserRole } from '../users/entities/user.entity';
-import { RequestSuperAdminDto, GrantSuperAdminDto } from './dto/super-admin-grant.dto';
+import { RequestPlatformOwnerDto, GrantPlatformOwnerDto } from './dto/platform-owner-grant.dto';
+import { isPlatformRole, PLATFORM_ID } from '../common/platform.constants';
 import { BulkDeleteUsersDto } from './dto/bulk-delete-users.dto';
 import { CreateUserInviteDto } from './dto/create-user-invite.dto';
 import { CreateTenantDto } from './dto/create-tenant.dto';
@@ -28,35 +29,35 @@ export class AdminController {
     private readonly googleOAuthService: GoogleOAuthService,
   ) {}
 
-  // ==================== SUPER ADMIN GRANT (NO AUTH) ====================
+  // ==================== PLATFORM OWNER GRANT (NO AUTH) ====================
 
-  @Post('request-superadmin')
+  @Post('request-platform-owner')
   @Throttle({ default: { limit: 3, ttl: 3600000 } }) // 3 requests per hour
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ 
-    summary: 'Request super admin grant code (NO AUTH)',
+    summary: 'Request platform owner grant code (NO AUTH)',
     description: 'Sends a 6-digit code to ADMIN_EMAIL. Rate limited to 3 requests per hour.',
   })
-  async requestSuperAdminGrant(@Req() request: Request) {
+  async requestPlatformOwnerGrant(@Req() request: Request) {
     const ipAddress = request.ip || request.socket.remoteAddress || 'unknown';
-    return this.adminService.requestSuperAdminGrant(ipAddress);
+    return this.adminService.requestPlatformOwnerGrant(ipAddress);
   }
 
-  @Post('grant-superadmin')
+  @Post('grant-platform-owner')
   @Throttle({ default: { limit: 10, ttl: 300000 } }) // 10 attempts per 5 minutes
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ 
-    summary: 'Grant super admin role using code (NO AUTH)',
-    description: 'Validates 6-digit code and grants super admin role to target email.',
+    summary: 'Grant platform owner role using code (NO AUTH)',
+    description: 'Validates 6-digit code and grants platform owner role to target email.',
   })
-  async grantSuperAdmin(@Body() dto: GrantSuperAdminDto) {
-    return this.adminService.grantSuperAdmin(dto.code, dto.targetEmail);
+  async grantPlatformOwner(@Body() dto: GrantPlatformOwnerDto) {
+    return this.adminService.grantPlatformOwner(dto.code, dto.targetEmail);
   }
 
   // ==================== DASHBOARD (AUTH REQUIRED) ====================
 
   @Get('dashboard/stats')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get dashboard statistics' })
   async getDashboardStats() {
@@ -66,7 +67,7 @@ export class AdminController {
   // ==================== USER MANAGEMENT ====================
 
   @Get('users')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all users' })
   async getAllUsers(
@@ -104,7 +105,7 @@ export class AdminController {
   }
 
   @Delete('users/:userId')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete user account' })
@@ -113,7 +114,7 @@ export class AdminController {
   }
 
   @Post('users/bulk-delete')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ 
@@ -129,7 +130,7 @@ export class AdminController {
   }
 
   @Post('users/invite')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ 
@@ -151,7 +152,7 @@ export class AdminController {
   }
 
   @Get('users/:userId/activity')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get user activity and sessions' })
   async getUserActivity(@Param('userId') userId: string) {
@@ -167,7 +168,7 @@ export class AdminController {
   }
 
   @Get('tenants/stale')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get stale tenants (Super Admin only)',
@@ -178,7 +179,7 @@ export class AdminController {
   }
 
   @Delete('tenants/:tenantId/purge')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -199,7 +200,7 @@ export class AdminController {
   }
 
   @Post('tenants')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ 
@@ -219,12 +220,12 @@ export class AdminController {
   }
 
   @Patch('tenants/:tenantId')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ 
-    summary: 'Update tenant details (Super Admin only)',
-    description: 'Updates tenant name and/or description. Tenant ID and domain cannot be changed.',
+    summary: 'Update tenant details (Platform Owner only)',
+    description: 'Updates tenant details including name, description, infrastructure type, and resources.',
   })
   @ApiResponse({ 
     status: 200, 
@@ -242,7 +243,7 @@ export class AdminController {
   }
 
   @Delete('tenants/:tenantId/undeploy')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Undeploy tenant frontend' })
@@ -255,7 +256,7 @@ export class AdminController {
   }
 
   @Get('tenants/:tenantId/admins')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Get all tenant admin users for a tenant' })
   @ApiResponse({ 
@@ -267,7 +268,7 @@ export class AdminController {
   }
 
   @Post('tenants/:tenantId/admins/:userId')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ 
@@ -290,7 +291,7 @@ export class AdminController {
   }
 
   @Delete('tenants/:tenantId/admins/:userId')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ 
@@ -311,7 +312,7 @@ export class AdminController {
   // ==================== STORAGE PROVIDER CONFIGURATION ====================
 
   @Patch('tenants/:tenantId/storage-provider')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update storage provider for tenant (Super Admin only)' })
   async updateStorageProvider(
@@ -339,7 +340,7 @@ export class AdminController {
   ) {
     // Validate tenant access
     const adminUser = request['adminUser'];
-    if (adminUser.role !== UserRole.SUPER_ADMIN && adminUser.tenant !== tenantId) {
+    if (!isPlatformRole(adminUser.role) && adminUser.tenant !== tenantId) {
       return {
         success: false,
         message: 'Access denied: Cannot configure payment provider for another tenant',
@@ -359,7 +360,7 @@ export class AdminController {
   ) {
     // Validate tenant access
     const adminUser = request['adminUser'];
-    if (adminUser.role !== UserRole.SUPER_ADMIN && adminUser.tenant !== tenantId) {
+    if (!isPlatformRole(adminUser.role) && adminUser.tenant !== tenantId) {
       return {
         success: false,
         message: 'Access denied: Cannot view payment providers for another tenant',
@@ -378,7 +379,7 @@ export class AdminController {
   @ApiOperation({ summary: 'Create new product (Admin or Tenant Admin)' })
   async createProduct(@Body() createProductDto: CreateProductDto, @Req() request: Request) {
     // Get tenant from authenticated user (attached by guard)
-    const tenant = request['adminUser']?.tenant || 'blocomanager';
+    const tenant = request['adminUser']?.tenant || PLATFORM_ID;
     return this.productService.create(createProductDto, tenant);
   }
 
@@ -390,7 +391,7 @@ export class AdminController {
     const adminUser = request['adminUser'];
     
     // Super admins see all products, tenant admins see only their tenant's products
-    if (adminUser.role === UserRole.SUPER_ADMIN) {
+    if (isPlatformRole(adminUser.role)) {
       return this.productService.findAllForAdmin();
     } else {
       return this.productService.findByTenant(adminUser.tenant);
@@ -404,7 +405,7 @@ export class AdminController {
   async getProduct(@Param('id') id: string, @Req() request: Request) {
     const product = await this.productService.findOne(id);
     const adminUser = request['adminUser'];
-    if (adminUser.role !== UserRole.SUPER_ADMIN && product.tenant !== adminUser.tenant) {
+    if (!isPlatformRole(adminUser.role) && product.tenant !== adminUser.tenant) {
       throw new ForbiddenException('Access denied: product belongs to another tenant');
     }
     return product;
@@ -421,7 +422,7 @@ export class AdminController {
   ) {
     const product = await this.productService.findOne(id);
     const adminUser = request['adminUser'];
-    if (adminUser.role !== UserRole.SUPER_ADMIN && product.tenant !== adminUser.tenant) {
+    if (!isPlatformRole(adminUser.role) && product.tenant !== adminUser.tenant) {
       throw new ForbiddenException('Access denied: product belongs to another tenant');
     }
     return this.productService.update(id, updateProductDto);
@@ -434,14 +435,14 @@ export class AdminController {
   async toggleProductActive(@Param('id') id: string, @Req() request: Request) {
     const product = await this.productService.findOne(id);
     const adminUser = request['adminUser'];
-    if (adminUser.role !== UserRole.SUPER_ADMIN && product.tenant !== adminUser.tenant) {
+    if (!isPlatformRole(adminUser.role) && product.tenant !== adminUser.tenant) {
       throw new ForbiddenException('Access denied: product belongs to another tenant');
     }
     return this.productService.toggleActive(id);
   }
 
   @Delete('products/:id')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Permanently delete product (Super Admin only)' })
@@ -452,7 +453,7 @@ export class AdminController {
   // ==================== GOOGLE GRANTS ====================
 
   @Get('google-grants')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'List all Google OAuth grants with expiry status' })
   async getGoogleGrants() {
@@ -487,7 +488,7 @@ export class AdminController {
   }
 
   @Delete('google-grants/:id')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Delete expired Google OAuth grant (Super Admin only)' })

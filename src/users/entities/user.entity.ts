@@ -8,7 +8,8 @@ export type UserDocument = User & Document;
 export enum UserRole {
   USER = 'user',
   TENANT_ADMIN = 'tenantAdmin',
-  SUPER_ADMIN = 'superAdmin',
+  PLATFORM_OWNER = 'platformOwner',
+  PLATFORM_MANAGER = 'platformManager',
 }
 
 @Schema({ timestamps: true })

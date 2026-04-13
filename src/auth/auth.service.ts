@@ -25,6 +25,7 @@ import { ChangeEmailResponseDto } from '../email-change/dto/change-email-respons
 import { ConfirmEmailChangeDto } from '../email-change/dto/confirm-email-change.dto';
 import { ConfirmEmailChangeResponseDto } from '../email-change/dto/confirm-email-change-response.dto';
 import { RefreshSessionResponseDto } from './dto/refresh-session-response.dto';
+import { PLATFORM_ID } from '../common/platform.constants';
 
 @Injectable()
 export class AuthService {
@@ -94,7 +95,7 @@ export class AuthService {
 
   async createToken(request?: Request): Promise<any> {
     // Extract tenant from request if provided, otherwise use default
-    let tenant = 'blocomanager'; // default tenant
+    let tenant = PLATFORM_ID; // default platform tenant
     if (request) {
       tenant = this.tenantService.extractTenantFromRequest(request);
       console.log(`Creating session for tenant: ${tenant} from host: ${request.get('host')}`);
@@ -153,7 +154,7 @@ export class AuthService {
     await this.sessionService.revokeSession(session._id);
 
     // Create a new unauthenticated session for the visitor
-    const tenant = session.tenant || 'blocomanager'; // Use same tenant
+    const tenant = session.tenant || PLATFORM_ID; // Use same tenant
     const newSession = await this.sessionService.create(tenant);
 
     // Return new JWT token for the unauthenticated session
@@ -489,7 +490,7 @@ export class AuthService {
     await this.sessionService.revokeSession(session._id);
 
     // Create a new unauthenticated session for the visitor
-    const tenant = session.tenant || 'blocomanager'; // Use same tenant
+    const tenant = session.tenant || PLATFORM_ID; // Use same tenant
     const newSession = await this.sessionService.create(tenant);
 
     // Return new JWT token for the unauthenticated session
@@ -662,7 +663,7 @@ export class AuthService {
     await this.sessionService.revokeAllUserSessions(emailChange.userId);
 
     // Create a new unauthenticated visitor session
-    const tenant = 'blocomanager'; // Default tenant
+    const tenant = PLATFORM_ID; // Default platform tenant
     const newSession = await this.sessionService.create(tenant);
 
     // Generate JWT token for the new visitor session

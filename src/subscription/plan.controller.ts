@@ -10,7 +10,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { PlanService } from './plan.service';
-import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
+import { PlatformOwnerGuard } from '../admin/guards/platform-owner.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 
 @ApiTags('Plans')
@@ -20,14 +20,14 @@ export class PlanController {
   constructor(private readonly planService: PlanService) {}
 
   @Get()
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiOperation({ summary: 'List all subscription plans' })
   async findAll() {
     return this.planService.findAll();
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiOperation({ summary: 'Create a subscription plan' })
   async create(
     @Body()
@@ -47,7 +47,7 @@ export class PlanController {
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiOperation({ summary: 'Update a subscription plan' })
   async update(
     @Param('id') id: string,
@@ -69,7 +69,7 @@ export class PlanController {
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiOperation({ summary: 'Delete a subscription plan' })
   async delete(@Param('id') id: string) {
     await this.planService.delete(id);

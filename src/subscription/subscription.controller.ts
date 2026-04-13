@@ -15,7 +15,7 @@ import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { SubscriptionService } from './subscription.service';
 import { StripeService } from './stripe.service';
-import { SuperAdminGuard } from '../admin/guards/super-admin.guard';
+import { PlatformOwnerGuard } from '../admin/guards/platform-owner.guard';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { SubscriptionPlan } from './schemas/subscription.schema';
 import { UsersService } from '../users/users.service';
@@ -31,7 +31,7 @@ export class SubscriptionAdminController {
   constructor(private readonly subscriptionService: SubscriptionService) {}
 
   @Post('onboard')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiOperation({ summary: 'Onboard a tenant with Stripe customer + trial subscription' })
   async onboardTenant(
     @Body() body: { tenantId: string; email: string; tenantName: string; plan?: SubscriptionPlan; planSlug?: string },
@@ -40,28 +40,28 @@ export class SubscriptionAdminController {
   }
 
   @Get('status')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiOperation({ summary: 'Get subscription status for a tenant' })
   async getStatus(@Req() req: Request & { query: { tenantId: string } }) {
     return this.subscriptionService.getStatus(req.query.tenantId);
   }
 
   @Post('cancel')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiOperation({ summary: 'Cancel a tenant subscription (admin)' })
   async adminCancel(@Body() body: { tenantId: string; immediately?: boolean }) {
     return this.subscriptionService.cancelSubscription(body.tenantId, body.immediately ?? false);
   }
 
   @Post('change-plan')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiOperation({ summary: 'Change a tenant subscription plan (admin)' })
   async adminChangePlan(@Body() body: { tenantId: string; planSlug: string }) {
     return this.subscriptionService.changePlan(body.tenantId, body.planSlug);
   }
 
   @Post('portal')
-  @UseGuards(JwtAuthGuard, SuperAdminGuard)
+  @UseGuards(JwtAuthGuard, PlatformOwnerGuard)
   @ApiOperation({ summary: 'Generate Stripe billing portal URL for a tenant (admin)' })
   async adminPortal(@Body() body: { tenantId: string }) {
     return this.subscriptionService.createAdminPortalSession(body.tenantId);

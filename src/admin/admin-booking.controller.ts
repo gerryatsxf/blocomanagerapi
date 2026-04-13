@@ -20,6 +20,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { AdminOrTenantAdminGuard } from './guards/admin-or-tenant-admin.guard';
 import { UserRole } from '../users/entities/user.entity';
+import { isPlatformRole } from '../common/platform.constants';
 import { VideoCallService } from '../meeting/services/video-call.service';
 import { MeetingService } from '../meeting/meeting.service';
 import { MeetingStatus } from '../meeting/entities/meeting.entity';
@@ -47,7 +48,7 @@ export class AdminBookingController {
     @Query('status') status?: string,
   ) {
     const adminUser = request['adminUser'];
-    const tenantId = adminUser.role === UserRole.SUPER_ADMIN
+    const tenantId = isPlatformRole(adminUser.role)
       ? request.query.tenantId as string
       : adminUser.tenant;
 
@@ -73,7 +74,7 @@ export class AdminBookingController {
     @Req() request: Request,
   ) {
     const adminUser = request['adminUser'];
-    const tenantId = adminUser.role === UserRole.SUPER_ADMIN
+    const tenantId = isPlatformRole(adminUser.role)
       ? request.query.tenantId as string
       : adminUser.tenant;
 
@@ -97,7 +98,7 @@ export class AdminBookingController {
     @Req() request: Request,
   ) {
     const adminUser = request['adminUser'];
-    const tenantId = adminUser.role === UserRole.SUPER_ADMIN
+    const tenantId = isPlatformRole(adminUser.role)
       ? createBookingDto.tenantId
       : adminUser.tenant;
 
@@ -123,7 +124,7 @@ export class AdminBookingController {
     @Req() request: Request,
   ) {
     const adminUser = request['adminUser'];
-    const tenantId = adminUser.role === UserRole.SUPER_ADMIN
+    const tenantId = isPlatformRole(adminUser.role)
       ? request.query.tenantId as string
       : adminUser.tenant;
 
@@ -191,7 +192,7 @@ export class AdminBookingController {
     @Req() request: Request,
   ) {
     const adminUser = request['adminUser'];
-    const tenantId = adminUser.role === UserRole.SUPER_ADMIN
+    const tenantId = isPlatformRole(adminUser.role)
       ? request.query.tenantId as string
       : adminUser.tenant;
 
@@ -306,7 +307,7 @@ export class AdminBookingController {
     @Req() request: Request,
   ) {
     const adminUser = request['adminUser'];
-    const tenantId = adminUser.role === UserRole.SUPER_ADMIN
+    const tenantId = isPlatformRole(adminUser.role)
       ? updateBookingDto.tenantId
       : adminUser.tenant;
 
@@ -358,7 +359,7 @@ export class AdminBookingController {
     @Req() request: Request,
   ) {
     const adminUser = request['adminUser'];
-    const tenantId = adminUser.role === UserRole.SUPER_ADMIN
+    const tenantId = isPlatformRole(adminUser.role)
       ? request.query.tenantId as string
       : adminUser.tenant;
 
@@ -402,7 +403,7 @@ export class AdminBookingController {
   @Post('sync-from-calendar')
   async syncFromGoogleCalendar(@Req() req: any) {
     const adminUser = req['adminUser'];
-    const tenantId = adminUser.role === UserRole.SUPER_ADMIN
+    const tenantId = isPlatformRole(adminUser.role)
       ? req.body.tenantId
       : adminUser.tenant;
     

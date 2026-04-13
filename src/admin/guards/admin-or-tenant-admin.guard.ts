@@ -1,6 +1,7 @@
 import { Injectable, CanActivate, ExecutionContext, ForbiddenException, Logger } from '@nestjs/common';
 import { UsersService } from '../../users/users.service';
 import { UserRole } from '../../users/entities/user.entity';
+import { isPlatformRole } from '../../common/platform.constants';
 
 @Injectable()
 export class AdminOrTenantAdminGuard implements CanActivate {
@@ -28,8 +29,8 @@ export class AdminOrTenantAdminGuard implements CanActivate {
       throw new ForbiddenException('User not found');
     }
 
-    // Allow both super admins and tenant admins
-    if (user.role !== UserRole.SUPER_ADMIN && user.role !== UserRole.TENANT_ADMIN) {
+    // Allow platform roles (owner/manager) and tenant admins
+    if (!isPlatformRole(user.role) && user.role !== UserRole.TENANT_ADMIN) {
       this.logger.warn(`AdminOrTenantAdminGuard - Access denied for role: ${user.role}`);
       throw new ForbiddenException('Admin access required');
     }

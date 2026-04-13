@@ -3,12 +3,13 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AdminController } from './admin.controller';
 import { AdminService } from './admin.service';
 import { User, UserSchema } from '../users/entities/user.entity';
-import { SuperAdminGrant, SuperAdminGrantSchema } from './entities/super-admin-grant.entity';
+import { PlatformOwnerGrant, PlatformOwnerGrantSchema } from './entities/platform-owner-grant.entity';
 import { UsersModule } from '../users/users.module';
 import { SessionModule } from '../session/session.module';
 import { NotificationModule } from '../notification/notification.module';
 import { EncryptionModule } from '../encryption/encryption.module';
-import { SuperAdminGuard } from './guards/super-admin.guard';
+import { PlatformOwnerGuard } from './guards/platform-owner.guard';
+import { PlatformGuard } from './guards/platform.guard';
 import { ProductModule } from '../product/product.module';
 import { TenantModule } from '../tenant/tenant.module';
 import { AdminMeetingController } from './admin-meeting.controller';
@@ -27,7 +28,7 @@ import { Subscription, SubscriptionSchema } from '../subscription/schemas/subscr
   imports: [
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
-      { name: SuperAdminGrant.name, schema: SuperAdminGrantSchema },
+      { name: PlatformOwnerGrant.name, schema: PlatformOwnerGrantSchema },
       { name: 'CRMContact', schema: CRMContactSchema },
       { name: Tenant.name, schema: TenantSchema },
       { name: Subscription.name, schema: SubscriptionSchema },
@@ -44,7 +45,7 @@ import { Subscription, SubscriptionSchema } from '../subscription/schemas/subscr
     AvailabilityModule,
   ],
   controllers: [AdminController, AdminMeetingController, AdminBookingController, AdminContactController, AdminAvailabilityController],
-  providers: [AdminService, SuperAdminGuard],
+  providers: [AdminService, PlatformOwnerGuard, PlatformGuard],
   exports: [AdminService],
 })
 export class AdminModule {}

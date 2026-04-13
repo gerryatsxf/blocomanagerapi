@@ -5,6 +5,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { ISession, SessionStatus, TenantVisitorStatus } from './entities/session.interface';
 import { TenantService } from '../tenant/tenant.service';
+import { PLATFORM_ID } from '../common/platform.constants';
 
 @Injectable()
 export class SessionService {
@@ -16,7 +17,7 @@ export class SessionService {
     const createSessionDto = new CreateSessionRequestDto();
     createSessionDto.timestamp = Date.now();
     createSessionDto.duration = 1000 * 60 * 60; // 1 hour in milliseconds
-    createSessionDto.tenant = tenant || 'blocomanager'; // Default tenant if not provided
+    createSessionDto.tenant = tenant || PLATFORM_ID; // Default tenant if not provided
     createSessionDto.status = SessionStatus.ACTIVE; // Set status to active
 
     const newSession = new this.sessionModel(createSessionDto);
@@ -31,7 +32,7 @@ export class SessionService {
     createSessionDto.duration = 1000 * 60 * 60; // 1 hour in milliseconds
     createSessionDto.leadId = leadId;
     createSessionDto.leadStage = 'st_greet'; // Default to 's1' for lead stage
-    createSessionDto.tenant = tenant || 'blocomanager'; // Default tenant if not provided
+    createSessionDto.tenant = tenant || PLATFORM_ID; // Default tenant if not provided
     createSessionDto.status = SessionStatus.ACTIVE; // Set status to active
     createSessionDto.tenantVisitorStatus = TenantVisitorStatus.LEAD; // Set tenant visitor status to lead
     console.log({ createSessionDto });

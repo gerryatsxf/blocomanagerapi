@@ -2,6 +2,7 @@ import { Injectable, Inject, forwardRef } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { SendNotificationRequestDto } from './dto/send-notification-request.dto';
 import { GoogleOAuthService } from '../tenant/google-oauth.service';
+import { PLATFORM_ID } from '../common/platform.constants';
 import { google } from 'googleapis';
 
 @Injectable()
@@ -64,8 +65,8 @@ export class NotificationService {
     textBody: string,
   ): Promise<boolean> {
     try {
-      // Default tenant for system emails (use 'blocomanager' as default)
-      const tenantId = 'blocomanager';
+      // Platform tenant for system emails
+      const tenantId = PLATFORM_ID;
       
       console.log(`📧 [sendGmailEmail] Attempting to send email to: ${to}`);
       console.log(`📧 [sendGmailEmail] Tenant ID: ${tenantId}`);

@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, ConflictException, BadRequestException, 
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User, UserDocument, UserRole } from '../users/entities/user.entity';
-import { SuperAdminGrant } from './entities/super-admin-grant.entity';
+import { PlatformOwnerGrant } from './entities/platform-owner-grant.entity';
 import { TENANT_CONFIGS, addTenantToConfig, removeTenantFromConfig } from '../tenant/config/tenant.config';
 import { SessionService } from '../session/session.service';
 import { NotificationService } from '../notification/notification.service';
@@ -21,7 +21,7 @@ export class AdminService {
 
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
-    @InjectModel(SuperAdminGrant.name) private superAdminGrantModel: Model<SuperAdminGrant>,
+    @InjectModel(PlatformOwnerGrant.name) private platformOwnerGrantModel: Model<PlatformOwnerGrant>,
     @InjectModel(Tenant.name) private tenantModel: Model<TenantDocument>,
     @InjectModel(Subscription.name) private subscriptionModel: Model<SubscriptionDocument>,
     private sessionService: SessionService,
@@ -101,9 +101,9 @@ export class AdminService {
       throw new NotFoundException('User not found');
     }
 
-    // Prevent deletion of super admin accounts (ARCO compliance - only self-deletion allowed)
-    if (user.role === UserRole.SUPER_ADMIN) {
-      throw new ConflictException('Super admin accounts cannot be deleted through admin panel. User must delete their own account to comply with ARCO regulations.');
+    // Prevent deletion of platform owner accounts (ARCO compliance - only self-deletion allowed)
+    if (user.role === UserRole.PLATFORM_OWNER) {
+      throw new ConflictException('Platform owner accounts cannot be deleted through admin panel. User must delete their own account to comply with ARCO regulations.');
     }
 
     await this.userModel.findByIdAndDelete(userId).exec();
@@ -132,11 +132,11 @@ export class AdminService {
           continue;
         }
 
-        // Skip super admin accounts
-        if (user.role === UserRole.SUPER_ADMIN) {
+        // Skip platform owner accounts
+        if (user.role === UserRole.PLATFORM_OWNER) {
           results.skipped.push({ 
             userId, 
-            reason: 'Super admin accounts cannot be deleted through admin panel' 
+            reason: 'Platform owner accounts cannot be deleted through admin panel' 
           });
           continue;
         }
@@ -485,6 +485,36 @@ export class AdminService {
       tenant.description = dto.description;
     }
 
+    if (dto.infrastructureType !== undefined) {
+      tenant.infrastructureType = dto.infrastructureType;
+    }
+
+    if (dto.resources !== undefined) {
+      tenant.resources = {
+        adminPanel: dto.resources.adminPanel ?? tenant.resources?.adminPanel ?? { enabled: true },
+        visitorSite: dto.resources.visitorSite ?? tenant.resources?.visitorSite ?? { enabled: true },
+        dedicatedServer: dto.resources.dedicatedServer ?? tenant.resources?.dedicatedServer ?? { enabled: false },
+      };
+    }
+
+    // Persist to MongoDB
+    const effectiveTenantId = dto.tenantId || tenantId;
+    const updatePayload: Record<string, any> = {};
+    if (dto.tenantId !== undefined) updatePayload.tenantId = dto.tenantId;
+    if (dto.domain !== undefined) updatePayload.domain = dto.domain;
+    if (dto.name !== undefined) updatePayload.name = dto.name;
+    if (dto.description !== undefined) updatePayload.description = dto.description;
+    if (dto.infrastructureType !== undefined) updatePayload.infrastructureType = dto.infrastructureType;
+    if (dto.resources !== undefined) updatePayload.resources = tenant.resources;
+
+    if (Object.keys(updatePayload).length > 0) {
+      await this.tenantModel.findOneAndUpdate(
+        { tenantId: effectiveTenantId },
+        { $set: updatePayload },
+        { new: true },
+      ).exec();
+    }
+
     return {
       message: 'Tenant updated successfully',
       tenant,
@@ -749,12 +779,12 @@ export class AdminService {
     };
   }
 
-  // ==================== SUPER ADMIN GRANT FLOW ====================
+  // ==================== PLATFORM OWNER GRANT FLOW ====================
 
   /**
    * Generate 6-digit code and send to admin email
    */
-  async requestSuperAdminGrant(ipAddress: string): Promise<{ message: string }> {
+  async requestPlatformOwnerGrant(ipAddress: string): Promise<{ message: string }> {
     const adminEmail = this.configService.get<string>('ADMIN_EMAIL');
     
     if (!adminEmail) {
@@ -767,7 +797,7 @@ export class AdminService {
     // Create grant record with 5-minute expiry
     const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
     
-    await this.superAdminGrantModel.create({
+    await this.platformOwnerGrantModel.create({
       code,
       expiresAt,
       used: false,
@@ -775,10 +805,10 @@ export class AdminService {
     });
 
     // Send email with code
-    const emailSubject = 'Super Admin Grant Code';
+    const emailSubject = 'Platform Owner Grant Code';
     const emailBody = `
-      <h2>Super Admin Grant Request</h2>
-      <p>A request has been made to grant super admin permissions.</p>
+      <h2>Platform Owner Grant Request</h2>
+      <p>A request has been made to grant platform owner permissions.</p>
       <p><strong>Your 6-digit code:</strong></p>
       <h1 style="font-size: 48px; letter-spacing: 8px; color: #2563eb;">${code}</h1>
       <p>This code expires in 5 minutes.</p>
@@ -791,7 +821,7 @@ export class AdminService {
       adminEmail,
       emailSubject,
       emailBody,
-      `Super Admin Grant Code: ${code}. Expires in 5 minutes. IP: ${ipAddress}`,
+      `Platform Owner Grant Code: ${code}. Expires in 5 minutes. IP: ${ipAddress}`,
     );
 
     return {
@@ -800,11 +830,11 @@ export class AdminService {
   }
 
   /**
-   * Validate code and grant super admin to target email
+   * Validate code and grant platform owner to target email
    */
-  async grantSuperAdmin(code: string, targetEmail: string): Promise<{ message: string; user: any }> {
+  async grantPlatformOwner(code: string, targetEmail: string): Promise<{ message: string; user: any }> {
     // Find valid, unused code
-    const grant = await this.superAdminGrantModel.findOne({
+    const grant = await this.platformOwnerGrantModel.findOne({
       code,
       used: false,
       expiresAt: { $gt: new Date() },
@@ -821,13 +851,13 @@ export class AdminService {
       throw new NotFoundException(`User with email ${targetEmail} not found`);
     }
 
-    // Check if already super admin
-    if (user.role === UserRole.SUPER_ADMIN) {
-      throw new ConflictException('User is already a super admin');
+    // Check if already platform owner
+    if (user.role === UserRole.PLATFORM_OWNER) {
+      throw new ConflictException('User is already a platform owner');
     }
 
-    // Grant super admin role
-    user.role = UserRole.SUPER_ADMIN;
+    // Grant platform owner role
+    user.role = UserRole.PLATFORM_OWNER;
     await user.save();
 
     // Mark code as used
@@ -839,10 +869,10 @@ export class AdminService {
     // Send confirmation email to admin
     const adminEmail = this.configService.get<string>('ADMIN_EMAIL');
     if (adminEmail) {
-      const emailSubject = 'Super Admin Role Granted';
+      const emailSubject = 'Platform Owner Role Granted';
       const emailBody = `
-        <h2>Super Admin Role Granted</h2>
-        <p>Super admin permissions have been successfully granted to:</p>
+        <h2>Platform Owner Role Granted</h2>
+        <p>Platform owner permissions have been successfully granted to:</p>
         <p><strong>Email:</strong> ${targetEmail}</p>
         <p><strong>Name:</strong> ${user.firstName || ''} ${user.lastName || ''}</p>
         <p><strong>Granted at:</strong> ${new Date().toLocaleString()}</p>
@@ -852,12 +882,12 @@ export class AdminService {
         adminEmail,
         emailSubject,
         emailBody,
-        `Super Admin Role Granted to ${targetEmail} at ${new Date().toLocaleString()}`,
+        `Platform Owner Role Granted to ${targetEmail} at ${new Date().toLocaleString()}`,
       );
     }
 
     return {
-      message: 'Super admin role granted successfully',
+      message: 'Platform owner role granted successfully',
       user: {
         email: user.email,
         firstName: user.firstName,

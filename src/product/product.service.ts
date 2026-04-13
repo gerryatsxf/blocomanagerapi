@@ -4,6 +4,7 @@ import { Model } from 'mongoose';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 import { Product, ProductDocument } from './entities/product.entity';
+import { PLATFORM_ID } from '../common/platform.constants';
 
 @Injectable()
 export class ProductService {
@@ -12,7 +13,7 @@ export class ProductService {
     private readonly productModel: Model<ProductDocument>,
   ) {}
 
-  async create(createProductDto: CreateProductDto, tenant: string = 'blocomanager'): Promise<Product> {
+  async create(createProductDto: CreateProductDto, tenant: string = PLATFORM_ID): Promise<Product> {
     const createdProduct = new this.productModel({
       ...createProductDto,
       currency: 'MXN',

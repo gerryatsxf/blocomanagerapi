@@ -1,11 +1,11 @@
 /**
- * Script to set a user as Super Admin
+ * Script to set a user as Platform Owner
  * 
  * Usage:
- *   node scripts/set-super-admin.js <email>
+ *   node scripts/set-platform-owner.js <email>
  * 
  * Example:
- *   node scripts/set-super-admin.js your@email.com
+ *   node scripts/set-platform-owner.js your@email.com
  */
 
 require('dotenv').config({ path: './env/dev.env' });
@@ -24,10 +24,10 @@ const UserSchema = new mongoose.Schema({
   emailVerificationToken: String,
 }, { timestamps: true });
 
-async function setSuperAdmin(email) {
+async function setPlatformOwner(email) {
   if (!email) {
     console.error('❌ Error: Email is required');
-    console.log('Usage: node scripts/set-super-admin.js <email>');
+    console.log('Usage: node scripts/set-platform-owner.js <email>');
     process.exit(1);
   }
 
@@ -50,16 +50,16 @@ async function setSuperAdmin(email) {
     console.log(`   Current Role: ${user.role || 'user'}`);
     console.log(`   Name: ${user.firstName || ''} ${user.lastName || ''}`);
 
-    if (user.role === 'superAdmin') {
-      console.log('\n✅ User is already a Super Admin!');
+    if (user.role === 'platformOwner') {
+      console.log('\n✅ User is already a Platform Owner!');
     } else {
-      user.role = 'superAdmin';
+      user.role = 'platformOwner';
       await user.save();
-      console.log('\n✅ User role updated to Super Admin!');
+      console.log('\n✅ User role updated to Platform Owner!');
     }
 
     console.log('\n🎉 Success! You can now login to the admin panel at:');
-    console.log('   http://localhost:3002/admin/panel');
+    console.log('   https://admin.blocomanager.com/admin/panel');
 
   } catch (error) {
     console.error('❌ Error:', error.message);
@@ -72,4 +72,4 @@ async function setSuperAdmin(email) {
 
 // Get email from command line arguments
 const email = process.argv[2];
-setSuperAdmin(email);
+setPlatformOwner(email);

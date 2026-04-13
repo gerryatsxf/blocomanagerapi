@@ -26,7 +26,7 @@ import { SubscriptionGuard } from './guards/subscription.guard';
       { name: Tenant.name, schema: TenantSchema },
       { name: User.name, schema: UserSchema },
     ]),
-    UsersModule,                      // SuperAdminGuard → UsersService
+    UsersModule,                      // PlatformOwnerGuard → UsersService
     forwardRef(() => TenantModule),   // TenantGuard → TenantService
     NotificationModule,               // Email notifications
   ],

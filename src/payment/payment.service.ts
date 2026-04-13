@@ -13,6 +13,7 @@ import { TenantService } from '../tenant/tenant.service';
 import { GoogleCalendarService } from '../tenant/google-calendar.service';
 import { GoogleOAuthService } from '../tenant/google-oauth.service';
 import { getTenantConfig } from '../tenant/config/tenant-email.config';
+import { PLATFORM_ID } from '../common/platform.constants';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
   apiVersion: '2022-11-15',
@@ -78,7 +79,7 @@ export class PaymentService {
         // );
 
         // Get tenant from session for customized content
-        const tenant = sessionInfo.tenant || 'blocomanager';
+        const tenant = sessionInfo.tenant || PLATFORM_ID;
         const tenantConfig = this.tenantService.getTenantConfig(tenant);
         
         // Get first authorized provider for the tenant (the main provider who will be the organizer)

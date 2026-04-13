@@ -2,7 +2,7 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
 
 @Schema({ timestamps: true })
-export class SuperAdminGrant extends Document {
+export class PlatformOwnerGrant extends Document {
   @Prop({ required: true, length: 6 })
   code: string;
 
@@ -22,7 +22,7 @@ export class SuperAdminGrant extends Document {
   ipAddress?: string;
 }
 
-export const SuperAdminGrantSchema = SchemaFactory.createForClass(SuperAdminGrant);
+export const PlatformOwnerGrantSchema = SchemaFactory.createForClass(PlatformOwnerGrant);
 
 // Index for automatic cleanup of expired codes
-SuperAdminGrantSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+PlatformOwnerGrantSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });

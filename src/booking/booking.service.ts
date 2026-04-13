@@ -16,6 +16,7 @@ import { sha512 } from 'hash36';
 import { GuestFreeSlotDto } from '../availability/dto/guest-free-slot.dto';
 import { PaymentStatusEnum } from '../payment/payment-status.enum';
 import { GetBookingStatusResponse } from './dto/get-booking-status-response';
+import { PLATFORM_ID } from '../common/platform.constants';
 
 @Injectable()
 export class BookingService {
@@ -87,7 +88,7 @@ export class BookingService {
     console.log(`📋 [Booking] Requested type: ${bookRequest.type}`);
 
     // Check if slot is not free
-    const tenantId = sessionInfo?.tenant || 'blocomanager';
+    const tenantId = sessionInfo?.tenant || PLATFORM_ID;
     const freeSlotsData = await this.freeSlotService.getFreeSlots(tenantId);
     console.log(`📋 [Booking] Free slots count: ${freeSlotsData.freeSlots.length}`);
     console.log(`📋 [Booking] Free slot timestamps: ${freeSlotsData.freeSlots.map((s: GuestFreeSlotDto) => s.meetingStartTime).join(', ')}`);
@@ -185,7 +186,7 @@ export class BookingService {
     const meetingDurationTime = 50 * 60; // 50 minutes in seconds
     const paymentExpirationTime = 5 * 60; // 5 minutes in seconds
     const newBooking: Partial<IBooking> = {
-      tenantId: sessionInfo?.tenant || 'blocomanager',
+      tenantId: sessionInfo?.tenant || PLATFORM_ID,
       meetingStartTimestamp: bookRequest.timestamp,
       meetingEndTimestamp: bookRequest.timestamp + meetingDurationTime,
       sessionId: sessionInfo.id,

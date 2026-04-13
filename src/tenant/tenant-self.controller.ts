@@ -14,6 +14,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TenantService } from './tenant.service';
 import { UsersService } from '../users/users.service';
 import { UserRole } from '../users/entities/user.entity';
+import { isPlatformRole } from '../common/platform.constants';
 
 // ── DTO ──────────────────────────────────────────────────────────
 
@@ -51,7 +52,7 @@ export class TenantSelfController {
 
     const user = await this.usersService.findById(session.userId);
     if (!user?.tenant) throw new ForbiddenException('You have no tenant assigned');
-    if (user.role !== UserRole.TENANT_ADMIN && user.role !== UserRole.SUPER_ADMIN) {
+    if (user.role !== UserRole.TENANT_ADMIN && !isPlatformRole(user.role)) {
       throw new ForbiddenException('Only tenant admins can manage tenant details');
     }
 
