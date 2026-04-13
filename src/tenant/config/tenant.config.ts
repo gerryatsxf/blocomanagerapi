@@ -1,10 +1,10 @@
 import { TenantConfig } from '../interfaces/tenant-config.interface';
+import { PLATFORM_ID, isPlatformId } from '../../common/platform.constants';
+import { isPlatformDomain, PLATFORM_CONFIG } from './platform.config';
 
 export const TENANT_DOMAIN_MAPPING: Record<string, string> = {
   'aprendecoding.com': 'aprendecoding',
   'pedrorivero.com': 'pedrorivero',
-  'blocomanager.com': 'blocomanager', // Default tenant
-  'api.blocomanager.com': 'blocomanager', // API subdomain
   'localhost': 'development', // For local development
 };
 
@@ -23,13 +23,6 @@ export const TENANT_CONFIGS: Record<string, TenantConfig> = {
     description: 'Personal consulting services',
     storageProvider: 'local',
   },
-  blocomanager: {
-    tenantId: 'blocomanager',
-    domain: 'blocomanager.com',
-    name: 'BlocoManager',
-    description: 'Default tenant for BlocoManager services',
-    storageProvider: 'local',
-  },
   development: {
     tenantId: 'development',
     domain: 'localhost',
@@ -42,31 +35,45 @@ export const TENANT_CONFIGS: Record<string, TenantConfig> = {
 /**
  * Extract tenant ID from domain
  * @param domain - The domain to extract tenant from (e.g., 'aprendecoding.com')
- * @returns The tenant ID or 'blocomanager' as default
+ * @returns The tenant ID, or PLATFORM_ID for platform domains
  */
 export function getTenantFromDomain(domain: string): string {
   // Remove port number if present (e.g., localhost:3002 -> localhost)
   const cleanDomain = domain.split(':')[0];
+
+  // Check if this is a platform domain first
+  if (isPlatformDomain(cleanDomain)) {
+    return PLATFORM_ID;
+  }
   
-  return TENANT_DOMAIN_MAPPING[cleanDomain] || 'blocomanager';
+  return TENANT_DOMAIN_MAPPING[cleanDomain] || PLATFORM_ID;
 }
 
 /**
- * Get tenant configuration by tenant ID
- * @param tenantId - The tenant ID
+ * Get tenant configuration by tenant ID.
+ * Returns platform config when tenantId matches PLATFORM_ID.
+ * @param tenantId - The tenant ID (or PLATFORM_ID)
  * @returns The tenant configuration or null if not found
  */
 export function getTenantConfig(tenantId: string): TenantConfig | null {
+  if (isPlatformId(tenantId)) {
+    return {
+      tenantId: PLATFORM_CONFIG.id,
+      domain: PLATFORM_CONFIG.domain,
+      name: PLATFORM_CONFIG.name,
+      description: PLATFORM_CONFIG.description,
+    };
+  }
   return TENANT_CONFIGS[tenantId] || null;
 }
 
 /**
- * Validate if a tenant exists
+ * Validate if a tenant exists (or if it's the platform)
  * @param tenantId - The tenant ID to validate
- * @returns true if tenant exists, false otherwise
+ * @returns true if tenant exists or is the platform ID, false otherwise
  */
 export function isValidTenant(tenantId: string): boolean {
-  return tenantId in TENANT_CONFIGS;
+  return isPlatformId(tenantId) || tenantId in TENANT_CONFIGS;
 }
 
 /**

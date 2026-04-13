@@ -11,8 +11,12 @@ export interface TenantContext {
   config: import('./tenant-config.interface').TenantConfig;
 }
 
-export type TenantId = 'aprendecoding' | 'pedrorivero' | 'blocomanager' | 'development';
+/**
+ * Known tenant IDs. Note: 'blocomanager' is the PLATFORM_ID (not a tenant).
+ * Use isPlatformId() from platform.constants.ts to check for it.
+ */
+export type TenantId = 'aprendecoding' | 'pedrorivero' | 'development';
 
 export interface TenantDomainMapping {
-  [domain: string]: TenantId;
+  [domain: string]: string;
 }

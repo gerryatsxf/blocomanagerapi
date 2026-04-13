@@ -10,6 +10,8 @@ import {
   TENANT_CONFIGS,
   addTenantToConfig,
 } from './config/tenant.config';
+import { isPlatformDomain } from './config/platform.config';
+import { PLATFORM_ID } from '../common/platform.constants';
 import { TenantConfig } from './interfaces/tenant-config.interface';
 import { Tenant, TenantDocument } from './schemas/tenant.schema';
 
@@ -151,17 +153,22 @@ export class TenantService implements OnModuleInit {
         const originUrl = new URL(origin);
         tenantDomain = originUrl.hostname;
       } catch (e) {
-        tenantDomain = 'blocomanager.com'; // Fallback to default
+        tenantDomain = 'blocomanager.com'; // Falls through to platform check below
       }
     } else {
-      // For same-origin requests, use default tenant
-      tenantDomain = 'blocomanager.com';
+      // For same-origin requests, default to platform
+      tenantDomain = 'blocomanager.com'; // Falls through to platform check below
+    }
+
+    // Check if it's a platform domain first
+    if (isPlatformDomain(tenantDomain)) {
+      return PLATFORM_ID;
     }
     
-    // Validate domain is allowed
+    // Validate domain is an allowed tenant domain
     const allowedDomains = Object.keys(TENANT_DOMAIN_MAPPING);
     if (!allowedDomains.includes(tenantDomain)) {
-      tenantDomain = 'blocomanager.com';
+      return PLATFORM_ID; // Unknown domain defaults to platform
     }
     
     return getTenantFromDomain(tenantDomain);

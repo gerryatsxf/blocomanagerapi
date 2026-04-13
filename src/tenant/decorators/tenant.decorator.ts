@@ -5,6 +5,8 @@ import {
   isValidTenant,
   TENANT_DOMAIN_MAPPING,
 } from '../config/tenant.config';
+import { isPlatformDomain, PLATFORM_DOMAINS } from '../config/platform.config';
+import { PLATFORM_ID } from '../../common/platform.constants';
 
 /**
  * Extract tenant from request using static config maps (no DI needed).
@@ -27,15 +29,21 @@ function extractTenantFromRequest(request: any): string {
       const originUrl = new URL(origin);
       tenantDomain = originUrl.hostname;
     } catch (e) {
-      tenantDomain = 'blocomanager.com';
+      tenantDomain = 'blocomanager.com'; // Falls through to platform check below
     }
   } else {
-    tenantDomain = 'blocomanager.com';
+    tenantDomain = 'blocomanager.com'; // Falls through to platform check below
   }
 
+  // Check if it's a platform domain first
+  if (isPlatformDomain(tenantDomain)) {
+    return PLATFORM_ID;
+  }
+
+  // Check if domain is an allowed tenant domain
   const allowedDomains = Object.keys(TENANT_DOMAIN_MAPPING);
   if (!allowedDomains.includes(tenantDomain)) {
-    tenantDomain = 'blocomanager.com';
+    return PLATFORM_ID; // Unknown domain defaults to platform
   }
 
   return getTenantFromDomain(tenantDomain);
