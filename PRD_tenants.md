@@ -4,7 +4,7 @@
 Design a tenant management system that allows B2B customers to authenticate and manage their installations through an admin panel with tenant-specific session management.
 
 ## Background
-The system currently supports multiple tenants (aprendecoding, pedrorivero, blocomanager) with basic domain-based detection. We need tenant-specific session management and B2B customer authentication.
+The system supports multiple tenants (aprendecoding, pedrorivero, etc.) with domain-based detection. The platform itself (blocomanager) is **not a tenant** — see `ARCHITECTURE_PLATFORM.md` for the platform-centric design. We need tenant-specific session management and B2B customer authentication.
 
 ## Key Requirements
 

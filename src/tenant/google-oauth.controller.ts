@@ -31,11 +31,18 @@ export class GoogleOAuthController {
   async initiateGoogleAuth(
     @Tenant() tenantId: string,
     @Query('panel') panel: string,
+    @Req() request: Request,
     @Res() res: Response,
   ) {
     try {
-      this.logger.debug(`Initiating Google OAuth for tenant: ${tenantId}, panel: ${panel || 'tenant'}`);
-      const authUrl = await this.googleOAuthService.generateAuthUrl(tenantId, panel || 'tenant');
+      // Determine panel: explicit query param > Referer header > default 'tenant'
+      let effectivePanel = panel;
+      if (!effectivePanel) {
+        const referer = request.get('referer') || '';
+        effectivePanel = referer.includes('admin.') ? 'admin' : 'tenant';
+      }
+      this.logger.debug(`Initiating Google OAuth for tenant: ${tenantId}, panel: ${effectivePanel}`);
+      const authUrl = await this.googleOAuthService.generateAuthUrl(tenantId, effectivePanel);
       this.logger.debug(`Generated auth URL: ${authUrl}`);
       return res.redirect(authUrl);
     } catch (error) {

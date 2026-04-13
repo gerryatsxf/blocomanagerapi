@@ -5,6 +5,7 @@ import { google } from 'googleapis';
 import { ConfigService } from '@nestjs/config';
 import { GoogleOAuthToken, GoogleOAuthTokenDocument } from './entities/google-oauth-token.entity';
 import { User, UserDocument } from '../users/entities/user.entity';
+import { PLATFORM_ID, isPlatformId, isPlatformRole } from '../common/platform.constants';
 
 @Injectable()
 export class GoogleOAuthService {
@@ -283,6 +284,50 @@ export class GoogleOAuthService {
       
       const userEmail = userInfo.data.email;
 
+      // ── Platform auth: skip user-tenant lookup ──
+      // Platform owners have no `tenant` field on their User record because
+      // the platform is NOT a tenant. We detect this via requestedTenant.
+      if (isPlatformId(requestedTenant)) {
+        // Verify the user exists and has a platform role
+        const user = await this.userModel.findOne({
+          email: userEmail.toLowerCase(),
+        }).exec();
+
+        if (!user) {
+          throw new Error(
+            `Email '${userEmail}' is not registered in the system. ` +
+            `Please contact the platform owner to create an account.`
+          );
+        }
+
+        if (!isPlatformRole(user.role)) {
+          throw new Error(
+            `Email '${userEmail}' does not have platform permissions. ` +
+            `Only platform owners and managers can connect Google from the admin panel.`
+          );
+        }
+
+        console.log(`✅ Platform auth: ${userEmail} (role: ${user.role}) connecting Google for platform`);
+
+        // Store tokens under the platform ID
+        await this.storeGoogleTokens(PLATFORM_ID, {
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          expiry_date: tokens.expiry_date,
+          scope: tokens.scope,
+          token_type: tokens.token_type,
+          email: userEmail,
+        });
+
+        return {
+          email: userEmail,
+          connectedAt: new Date(),
+          detectedTenant: PLATFORM_ID,
+          authorizedTenants: [PLATFORM_ID],
+        };
+      }
+
+      // ── Tenant auth: standard user-tenant lookup ──
       // Query database to find which tenant(s) this email belongs to
       const users = await this.userModel.find({ 
         email: userEmail.toLowerCase() 
