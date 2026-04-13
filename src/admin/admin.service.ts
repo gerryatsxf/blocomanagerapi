@@ -761,21 +761,43 @@ export class AdminService {
   // ==================== PAYMENT/ANALYTICS ====================
 
   async getDashboardStats() {
-    const [totalUsers, usersByRole] = await Promise.all([
+    const [
+      totalUsers,
+      usersByRole,
+      totalTenants,
+      subscriptionsByStatus,
+      infraBreakdown,
+      recentUsers,
+    ] = await Promise.all([
       this.userModel.countDocuments(),
       this.userModel.aggregate([
-        {
-          $group: {
-            _id: '$role',
-            count: { $sum: 1 },
-          },
-        },
+        { $group: { _id: '$role', count: { $sum: 1 } } },
       ]),
+      this.tenantModel.countDocuments(),
+      this.subscriptionModel.aggregate([
+        { $group: { _id: '$status', count: { $sum: 1 } } },
+      ]),
+      this.tenantModel.aggregate([
+        { $group: { _id: '$infrastructureType', count: { $sum: 1 } } },
+      ]),
+      this.userModel.find()
+        .sort({ createdAt: -1 })
+        .limit(5)
+        .select('email firstName lastName role tenant createdAt')
+        .lean(),
     ]);
+
+    // Count active sessions across all tenants
+    const activeSessions = await this.sessionService['sessionModel'].countDocuments({ status: 'active' });
 
     return {
       totalUsers,
+      totalTenants,
+      activeSessions,
       usersByRole,
+      subscriptionsByStatus,
+      infraBreakdown,
+      recentUsers,
     };
   }
 
