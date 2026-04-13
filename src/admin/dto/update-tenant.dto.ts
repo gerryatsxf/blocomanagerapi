@@ -1,5 +1,28 @@
-import { IsString, IsOptional, MinLength, MaxLength, Matches } from 'class-validator';
+import { IsString, IsOptional, MinLength, MaxLength, Matches, IsIn, ValidateNested, IsBoolean } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+
+class ResourceToggleDto {
+  @IsBoolean()
+  enabled: boolean;
+}
+
+class TenantResourcesDto {
+  @ValidateNested()
+  @Type(() => ResourceToggleDto)
+  @IsOptional()
+  adminPanel?: ResourceToggleDto;
+
+  @ValidateNested()
+  @Type(() => ResourceToggleDto)
+  @IsOptional()
+  visitorSite?: ResourceToggleDto;
+
+  @ValidateNested()
+  @Type(() => ResourceToggleDto)
+  @IsOptional()
+  dedicatedServer?: ResourceToggleDto;
+}
 
 export class UpdateTenantDto {
   @ApiPropertyOptional({
@@ -44,4 +67,23 @@ export class UpdateTenantDto {
   @IsOptional()
   @MaxLength(500)
   description?: string;
+
+  @ApiPropertyOptional({
+    description: 'Infrastructure type for the tenant',
+    example: 'shared',
+    enum: ['shared', 'dedicated'],
+  })
+  @IsString()
+  @IsOptional()
+  @IsIn(['shared', 'dedicated'])
+  infrastructureType?: 'shared' | 'dedicated';
+
+  @ApiPropertyOptional({
+    description: 'Toggleable platform-managed resources for the tenant',
+    example: { adminPanel: { enabled: true }, visitorSite: { enabled: true }, dedicatedServer: { enabled: false } },
+  })
+  @ValidateNested()
+  @Type(() => TenantResourcesDto)
+  @IsOptional()
+  resources?: TenantResourcesDto;
 }

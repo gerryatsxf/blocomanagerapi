@@ -35,6 +35,17 @@ export class Tenant {
   @Prop()
   deploymentId?: string;
 
+  // ── Infrastructure ──
+  @Prop({ default: 'shared' })
+  infrastructureType?: string; // 'shared' | 'dedicated'
+
+  @Prop({ type: Object, default: () => ({ adminPanel: { enabled: true }, visitorSite: { enabled: true }, dedicatedServer: { enabled: false } }) })
+  resources?: {
+    adminPanel: { enabled: boolean };
+    visitorSite: { enabled: boolean };
+    dedicatedServer: { enabled: boolean };
+  };
+
   // ── Billing ──
   @Prop({ index: true })
   stripeCustomerId?: string;

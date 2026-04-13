@@ -1,3 +1,15 @@
+export interface TenantResourceConfig {
+  enabled: boolean;
+}
+
+export interface TenantResources {
+  adminPanel: TenantResourceConfig;
+  visitorSite: TenantResourceConfig;
+  dedicatedServer: TenantResourceConfig;
+}
+
+export type InfrastructureType = 'shared' | 'dedicated';
+
 export interface TenantConfig {
   tenantId: string;
   domain: string;
@@ -6,6 +18,9 @@ export interface TenantConfig {
   settings?: TenantSettings;
   storageProvider?: string; // 'local', 'aws_s3', 'azure_blob', 'google_cloud'
   storageConfig?: Record<string, any>; // Provider-specific storage configuration
+  // Infrastructure
+  infrastructureType?: InfrastructureType;
+  resources?: TenantResources;
   // Deployment information
   frontendUrl?: string;
   deploymentStatus?: 'pending' | 'provisioning' | 'deployed' | 'failed' | 'undeployed';
